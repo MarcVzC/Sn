@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>ABISAL — Fase 1</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Outfit:wght@400;500;600&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{height:100%;background:#04060d;overflow:hidden;touch-action:none;
+  font-family:Outfit,system-ui,sans-serif;color:#EDF2FF;-webkit-user-select:none;user-select:none}
+canvas{display:block;position:fixed;inset:0;width:100%;height:100%}
+.ui{position:fixed;inset:0;pointer-events:none;z-index:5;
+  padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 16px)}
+.hud{display:flex;justify-content:space-between;align-items:flex-start}
+.dep{font:700 34px JetBrains Mono,monospace;line-height:1;letter-spacing:-.02em;
+  text-shadow:0 0 22px rgba(90,220,255,.65)}
+.dep small{font:600 11px Outfit;letter-spacing:.3em;opacity:.5;display:block;margin-top:5px}
+.rgt{text-align:right;font:700 15px JetBrains Mono,monospace;opacity:.82}
+.rgt div{margin-bottom:5px}
+.warn{position:fixed;top:0;left:0;right:0;height:130px;pointer-events:none;opacity:0;
+  background:linear-gradient(180deg,rgba(255,40,90,.5),transparent);transition:opacity .2s}
+.flares{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom) + 22px);
+  display:flex;flex-direction:column;gap:9px;align-items:flex-end;pointer-events:auto;z-index:6}
+.fbtn{width:60px;height:60px;border-radius:50%;border:1.5px solid rgba(255,210,90,.55);
+  background:radial-gradient(circle at 40% 34%,rgba(255,225,140,.34),rgba(255,170,40,.13));
+  color:#FFD86A;font:700 12px Chakra Petch;display:grid;place-items:center;
+  backdrop-filter:blur(8px);box-shadow:0 0 24px rgba(255,190,60,.28)}
+.fbtn:active{transform:scale(.92)}
+.fbtn.off{opacity:.28;border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.4);box-shadow:none}
+
+.veil{position:fixed;inset:0;z-index:10;background:rgba(3,5,12,.9);backdrop-filter:blur(9px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:24px;opacity:0;pointer-events:none;transition:opacity .3s}
+.veil.on{opacity:1;pointer-events:auto}
+.kill{font:600 11px Outfit;letter-spacing:.34em;text-transform:uppercase;color:rgba(237,242,255,.45)}
+.who{font:700 30px Chakra Petch;color:#FF5C7A;text-shadow:0 0 26px rgba(255,60,110,.5);margin:3px 0 20px}
+.big{font:700 68px JetBrains Mono,monospace;line-height:.9;
+  background:linear-gradient(180deg,#fff,#5BE9FF);-webkit-background-clip:text;background-clip:text;color:transparent}
+.big small{font:600 11px Outfit;letter-spacing:.32em;color:rgba(237,242,255,.45);
+  display:block;margin-top:9px;-webkit-text-fill-color:rgba(237,242,255,.45)}
+.stat2{display:flex;gap:26px;margin:22px 0 26px}
+.stat2 div{text-align:center}
+.stat2 b{font:700 21px JetBrains Mono,monospace;color:#C6FF4A;display:block}
+.stat2 span{font:500 10px Outfit;letter-spacing:.16em;text-transform:uppercase;opacity:.45}
+.btn{width:min(300px,84vw);padding:17px;border:0;border-radius:17px;margin-top:9px;
+  font:700 16px Chakra Petch;letter-spacing:.13em;color:#0A1220;
+  background:linear-gradient(96deg,#C6FF4A,#5BE9FF)}
+.btn:active{transform:scale(.97)}
+.btn.gh{background:rgba(255,255,255,.08);color:#EDF2FF;border:1px solid rgba(140,170,255,.22)}
+.btn.ad{background:linear-gradient(96deg,#FFC93D,#FF7A4D);color:#20120A}
+.nem{margin-top:16px;font:500 12px Outfit;opacity:.5}
+.nem b{color:#FF5C7A}
+.tip{position:fixed;left:50%;top:58%;transform:translateX(-50%);z-index:7;text-align:center;
+  font:500 13px Outfit;color:rgba(237,242,255,.62);pointer-events:none;transition:opacity .5s;width:80%}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="warn" id="warn"></div>
+<div class="ui">
+  <div class="hud">
+    <div class="dep"><span id="dep">0</span><small>METROS</small></div>
+    <div class="rgt">
+      <div id="len">LARGO 10</div>
+      <div id="alive" style="opacity:.55">RIVALES 0</div>
+    </div>
+  </div>
+</div>
+<div class="flares"><button class="fbtn" id="fb">BENGALA<br><span id="fn">2</span></button></div>
+<div class="tip" id="tip">Arrastra el dedo para dirigirte.<br>Aléjalo del gusano para acelerar.</div>
+
+<div class="veil on" id="veil">
+  <div id="deadInfo" style="display:none;text-align:center">
+    <div class="kill">Eliminado por</div>
+    <div class="who" id="who">—</div>
+  </div>
+  <div class="big"><span id="fdep">ABISAL</span><small id="flab">toca para descender</small></div>
+  <div class="stat2" id="fstats" style="display:none">
+    <div><b id="flen">0</b><span>largo</span></div>
+    <div><b id="fbest">0</b><span>récord</span></div>
+    <div><b id="fkill">0</b><span>bajas</span></div>
+  </div>
+  <button class="btn ad" id="bRev" style="display:none">REVIVIR AQUÍ · VER ANUNCIO</button>
+  <button class="btn" id="bGo">DESCENDER</button>
+  <div class="nem" id="nemBox" style="display:none">Némesis: <b id="nemName"></b> · <span id="nemCnt"></span></div>
+</div>
+
+<script>
+/* ═══════════════ CONFIG ═══════════════ */
+const CFG={
+  W:1400,               // ancho del mundo
+  spd:2.15,             // velocidad base
+  boost:3.7,            // velocidad al acelerar
+  turn:.16,             // agilidad de giro
+  seg:4.2,              // separación entre segmentos
+  startLen:10,
+  food:190,             // comida viva en pantalla
+  toxic:26,
+  bots:11,
+  lightBase:110,        // radio de luz mínimo
+  lightPer:2.6          // luz extra por unidad de largo
+};
+
+const NAMES=["KRAKEN","viboraKiller","Ana_88","m0rt4l","luisfer","xX_Nocturno","kenji","La_Bestia",
+"Zeta9","pipo_23","GusanoRex","Mila","tuntun","Dr4go","elCubano","Nyx","Rafa__","Sombra",
+"vortex7","kiko","Lupita","N30N","Bicho","tavo","QuetzaL","mmmm","Puma_","JJ_","Ares","zzz_ana",
+"Cheko","La_Flaca","Onix","perritoo","Vega","krlos","Tiburon","yuli","NEXO_","Bran"];
+
+const PERS=[ // personalidad: agresividad, apetito, cautela, habilidad
+ {a:.9,f:.3,c:.2,s:.9},{a:.2,f:.9,c:.3,s:.5},{a:.5,f:.5,c:.8,s:.8},
+ {a:.8,f:.6,c:.1,s:.4},{a:.3,f:.4,c:.9,s:.7},{a:.6,f:.8,c:.4,s:.6}
+];
+
+/* ═══════════════ CANVAS ═══════════════ */
+const cv=document.getElementById('cv'),x=cv.getContext('2d');
+const lc=document.createElement('canvas'),lx=lc.getContext('2d');   // capa de oscuridad
+let W,H,DPR;
+function fit(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;x.setTransform(DPR,0,0,DPR,0,0);
+  lc.width=W*DPR;lc.height=H*DPR;lx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize',fit);fit();
+
+// textura de ruido, generada una vez (quita el bandeado de los degradados)
+const nz=document.createElement('canvas');nz.width=nz.height=140;
+{const c=nz.getContext('2d'),d=c.createImageData(140,140);
+ for(let i=0;i<d.data.length;i+=4){const v=Math.random()*255;
+   d.data[i]=d.data[i+1]=d.data[i+2]=v;d.data[i+3]=13}
+ c.putImageData(d,0,0);}
+
+/* ═══════════════ ESTADO ═══════════════ */
+let cam={x:0,y:0},ceil=0,depth=0,best=0,kills=0,run=false,tk=0,shake=0,
+    food=[],toxic=[],worms=[],parts=[],flares=2,flareT=0,tipT=0,
+    nemesis=null,nemCount=0,lastKiller=null,revived=false,glowFx=[];
+
+const R=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+function mkWorm(isP,y){
+  const p=isP?null:pick(PERS);
+  return{
+    p:isP,name:isP?'TÚ':pick(NAMES),per:p,
+    x:isP?CFG.W/2:R(90,CFG.W-90),y:y,
+    ang:Math.PI/2,len:CFG.startLen+(isP?0:Math.floor(R(0,26))),
+    path:[],hue:isP?188:R(0,360),boost:0,alive:true,tgt:null,think:0
+  };
+}
+
+function mkFood(y0,y1){return{x:R(40,CFG.W-40),y:R(y0,y1),v:1,h:R(150,210),r:3.4}}
+function mkTox(y0,y1){return{x:R(60,CFG.W-60),y:R(y0,y1),h:pick([95,310]),ph:R(0,6.3)}}
+
+function reset(){
+  cam={x:0,y:0};ceil=-H*.8;depth=0;kills=0;flares=2;revived=false;lastKiller=null;
+  food=[];toxic=[];worms=[];parts=[];glowFx=[];
+  const P=mkWorm(true,300);
+  for(let i=0;i<CFG.startLen*CFG.seg;i++)P.path.push({x:P.x,y:P.y});
+  worms.push(P);
+  for(let i=0;i<CFG.bots;i++){
+    const b=mkWorm(false,R(100,900));
+    for(let j=0;j<b.len*CFG.seg;j++)b.path.push({x:b.x,y:b.y});
+    worms.push(b);
+  }
+  for(let i=0;i<CFG.food;i++)food.push(mkFood(0,1400));
+  for(let i=0;i<CFG.toxic;i++)toxic.push(mkTox(300,1400));
+  tipT=260;
+}
+const P=()=>worms[0];
+
+/* ═══════════════ CONTROL ═══════════════ */
+let finger=null;
+function setF(e){const t=e.touches?e.touches[0]:e;finger={x:t.clientX,y:t.clientY}}
+cv.addEventListener('pointerdown',e=>{setF(e);cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(finger)setF(e)});
+cv.addEventListener('pointerup',()=>finger=null);
+cv.addEventListener('pointercancel',()=>finger=null);
+
+document.getElementById('fb').onclick=e=>{e.stopPropagation();useFlare()};
+function useFlare(){if(flares<=0||!run)return;flares--;flareT=250;shake=8;refreshFlare()}
+function refreshFlare(){
+  const b=document.getElementById('fb');
+  document.getElementById('fn').textContent=flares;
+  b.classList.toggle('off',flares<=0);
+}
+
+/* ═══════════════ IA ═══════════════ */
+function botThink(b){
+  const per=b.per;let bx=0,by=0;
+
+  // comida cercana
+  let bf=null,bd=1e9;
+  for(const f of food){
+    const d=(f.x-b.x)**2+(f.y-b.y)**2;
+    if(d<330*330&&d<bd){bd=d;bf=f}
+  }
+  if(bf){bx+=(bf.x-b.x)*per.f;by+=(bf.y-b.y)*per.f}
+
+  for(const w of worms){
+    if(w===b||!w.alive)continue;
+    const dx=w.x-b.x,dy=w.y-b.y,d=Math.hypot(dx,dy);
+    if(d<300){
+      // más grande que yo -> huir; más chico -> cortarle el paso
+      const bigger=w.len>b.len*1.15;
+      const f=(bigger?-1:per.a)*(1-d/300)*260;
+      bx+=dx/d*f;by+=dy/d*f;
+    }
+    // esquivar cuerpos
+    for(let i=6;i<w.path.length;i+=9){
+      const s=w.path[i],dx2=s.x-b.x,dy2=s.y-b.y,d2=Math.hypot(dx2,dy2);
+      if(d2<95){bx-=dx2/d2*(95-d2)*3.4*(1+per.c);by-=dy2/d2*(95-d2)*3.4*(1+per.c)}
+    }
+  }
+  for(const t of toxic){
+    const dx=t.x-b.x,dy=t.y-b.y,d=Math.hypot(dx,dy);
+    if(d<130){bx-=dx/d*(130-d)*3;by-=dy/d*(130-d)*3}
+  }
+  // paredes y techo
+  if(b.x<130)bx+=(130-b.x)*3.5;
+  if(b.x>CFG.W-130)bx-=(b.x-(CFG.W-130))*3.5;
+  if(b.y-ceil<300)by+=(300-(b.y-ceil))*2.6;
+  by+=42; // tendencia a descender
+
+  if(bx||by)b.tgt=Math.atan2(by,bx);
+  b.boost=(per.a>.6&&bf&&bd<150*150&&Math.random()<.3)?1:0;
+}
+
+/* ═══════════════ MUERTE ═══════════════ */
+function killWorm(w,by){
+  if(!w.alive)return;
+  w.alive=false;
+  // EL CUERPO SE ESPARCE — mecánica central
+  for(let i=0;i<w.path.length;i+=3){
+    const s=w.path[i];
+    food.push({x:s.x+R(-11,11),y:s.y+R(-11,11),v:2.6,h:w.hue,r:5.4});
+  }
+  for(let i=0;i<26;i++)parts.push({x:w.x,y:w.y,vx:R(-6,6),vy:R(-6,6),l:1,h:w.hue});
+  glowFx.push({x:w.x,y:w.y,r:0,l:1,h:w.hue});
+  if(w.p){lastKiller=by;endRun()}
+  else if(by&&by.p){kills++;shake=9}
+}
+
+/* ═══════════════ BUCLE ═══════════════ */
+function step(){
+  tk++;
+  const p=P();
+  if(flareT>0)flareT--;
+  const forced=.55+depth*.0016;
+  ceil+=forced;
+
+  for(const w of worms){
+    if(!w.alive)continue;
+    if(w.p){
+      if(finger){
+        const fx=finger.x-W/2,fy=finger.y-H/2,d=Math.hypot(fx,fy);
+        if(d>12){
+          w.tgt=Math.atan2(fy,fx);
+          w.boost=d>Math.min(W,H)*.30&&w.len>12?1:0;
+        }
+      }else w.boost=0;
+    }else{ if(--w.think<=0){botThink(w);w.think=4+Math.floor(Math.random()*5)} }
+
+    if(w.tgt!=null){
+      let df=((w.tgt-w.ang+Math.PI*3)%(Math.PI*2))-Math.PI;
+      const ag=CFG.turn*(w.p?1:.82);
+      w.ang+=Math.max(-ag,Math.min(ag,df));
+    }
+    let sp=w.boost?CFG.boost:CFG.spd;
+    sp*=1+Math.min(depth*.00035,.75);
+    if(w.boost&&tk%9===0&&w.len>12){
+      w.len-=.5;
+      food.push({x:w.path[w.path.length-1].x,y:w.path[w.path.length-1].y,v:1,h:w.hue,r:3.6});
+    }
+    w.x+=Math.cos(w.ang)*sp;w.y+=Math.sin(w.ang)*sp;
+    w.x=Math.max(20,Math.min(CFG.W-20,w.x));
+    w.path.unshift({x:w.x,y:w.y});
+    const need=Math.floor(w.len*CFG.seg);
+    while(w.path.length>need)w.path.pop();
+
+    // techo de oscuridad
+    if(w.y<ceil)killWorm(w,null);
+  }
+
+  // comer
+  for(const w of worms){
+    if(!w.alive)continue;
+    const rr=(9+w.len*.10);
+    for(let i=food.length-1;i>=0;i--){
+      const f=food[i];
+      if((f.x-w.x)**2+(f.y-w.y)**2<(rr+f.r+7)**2){
+        w.len+=f.v*.55;food.splice(i,1);
+        if(w.p)for(let k=0;k<3;k++)parts.push({x:f.x,y:f.y,vx:R(-2,2),vy:R(-2,2),l:.7,h:f.h});
+      }
+    }
+    for(const t of toxic)
+      if((t.x-w.x)**2+(t.y-w.y)**2<(rr+13)**2)killWorm(w,null);
+  }
+
+  // colisión: cabeza contra cuerpo ajeno
+  for(const w of worms){
+    if(!w.alive)continue;
+    const rw=8+w.len*.10;
+    for(const o of worms){
+      if(o===w||!o.alive)continue;
+      const ro=8+o.len*.10;
+      for(let i=4;i<o.path.length;i+=3){
+        const s=o.path[i];
+        if((s.x-w.x)**2+(s.y-w.y)**2<(rw+ro*.82)**2){killWorm(w,o);break}
+      }
+      if(!w.alive)break;
+    }
+  }
+
+  // reponer mundo
+  const low=cam.y+H+700;
+  while(food.length<CFG.food)food.push(mkFood(cam.y+H,low));
+  food=food.filter(f=>f.y>ceil-260);
+  while(toxic.length<CFG.toxic)toxic.push(mkTox(cam.y+H+140,low));
+  toxic=toxic.filter(t=>t.y>ceil-260);
+
+  const live=worms.filter(w=>w.alive&&!w.p).length;
+  if(live<CFG.bots&&tk%40===0){
+    const b=mkWorm(false,cam.y+H+R(140,520));
+    for(let j=0;j<b.len*CFG.seg;j++)b.path.push({x:b.x,y:b.y});
+    worms.push(b);
+  }
+  worms=worms.filter(w=>w.p||w.alive||w.path.length>0);
+  worms.forEach(w=>{if(!w.alive&&!w.p)w.path=[]});
+  worms=worms.filter(w=>w.p||w.alive);
+
+  if(p.alive){
+    depth=Math.max(depth,Math.floor(p.y/10));
+    cam.y+=((p.y-H*.46)-cam.y)*.10;
+    cam.x+=((p.x-W/2)-cam.x)*.10;
+    cam.x=Math.max(-40,Math.min(CFG.W-W+40,cam.x));
+  }
+
+  for(const q of parts){q.x+=q.vx;q.y+=q.vy;q.vx*=.95;q.vy*=.95;q.l-=.022}
+  parts=parts.filter(q=>q.l>0);
+  for(const g of glowFx){g.r+=9;g.l-=.03}
+  glowFx=glowFx.filter(g=>g.l>0);
+
+  document.getElementById('dep').textContent=depth;
+  document.getElementById('len').textContent='LARGO '+Math.floor(p.len);
+  document.getElementById('alive').textContent='RIVALES '+live;
+  const dz=(p.y-ceil)/H;
+  document.getElementById('warn').style.opacity=p.alive&&dz<.42?(1-dz/.42).toFixed(2):0;
+  if(tipT>0&&--tipT<=0)document.getElementById('tip').style.opacity=0;
+}
+
+/* ═══════════════ DIBUJO ═══════════════ */
+function seg(ctx,w,i,px,py,r,a){
+  const f=i/Math.max(w.path.length,1);
+  ctx.fillStyle=`hsla(${(w.hue+f*70)%360},100%,${74-f*26}%,${a})`;
+  ctx.beginPath();ctx.arc(px,py,r,0,6.29);ctx.fill();
+}
+
+function render(){
+  const p=P();
+  x.fillStyle='#04060d';x.fillRect(0,0,W,H);
+  x.save();
+  if(shake>.4){x.translate(R(-shake,shake),R(-shake,shake));shake*=.87}
+  x.translate(-cam.x,-cam.y);
+
+  // ── fondo: minerales tenues (referencia espacial) ──
+  const gy=Math.floor(cam.y/150)*150;
+  x.fillStyle='rgba(120,150,220,.055)';
+  for(let yy=gy-150;yy<cam.y+H+150;yy+=150)
+    for(let xx=0;xx<CFG.W;xx+=150){
+      const s=Math.sin(xx*.07+yy*.031)*.5+.5;
+      x.beginPath();x.arc(xx+s*70,yy+s*90,1.6+s*2.2,0,6.29);x.fill();
+    }
+  // paredes
+  x.strokeStyle='rgba(110,140,220,.13)';x.lineWidth=3;
+  x.beginPath();x.moveTo(0,cam.y-50);x.lineTo(0,cam.y+H+50);
+  x.moveTo(CFG.W,cam.y-50);x.lineTo(CFG.W,cam.y+H+50);x.stroke();
+
+  // ── cuerpos ──
+  x.globalCompositeOperation='lighter';
+  for(const w of worms){
+    if(!w.alive)continue;
+    const r0=8+w.len*.10;
+    for(let i=w.path.length-1;i>=0;i-=2){
+      const s=w.path[i],f=i/w.path.length,r=r0*(1-f*.42);
+      if(s.y<cam.y-70||s.y>cam.y+H+70)continue;
+      x.shadowBlur=w.boost?24:14;x.shadowColor=`hsl(${w.hue},100%,62%)`;
+      seg(x,w,i,s.x,s.y,r,.92);
+    }
+    // cabeza + ojos
+    x.shadowBlur=30;x.shadowColor=`hsl(${w.hue},100%,68%)`;
+    x.fillStyle=`hsl(${w.hue},100%,80%)`;
+    x.beginPath();x.arc(w.x,w.y,r0*1.08,0,6.29);x.fill();
+    x.shadowBlur=0;
+    const ea=w.ang;
+    x.fillStyle='#04060d';
+    for(const o of[-.6,.6]){
+      x.beginPath();
+      x.arc(w.x+Math.cos(ea+o)*r0*.62,w.y+Math.sin(ea+o)*r0*.62,r0*.22,0,6.29);x.fill();
+    }
+  }
+  x.shadowBlur=0;x.globalCompositeOperation='source-over';
+  x.restore();
+
+  /* ── OSCURIDAD: sólo iluminan los gusanos ── */
+  lx.setTransform(DPR,0,0,DPR,0,0);
+  lx.globalCompositeOperation='source-over';
+  lx.fillStyle='#04060d';lx.fillRect(0,0,W,H);
+  lx.globalCompositeOperation='destination-out';
+  const boost=flareT>0?Math.min(flareT/26,1):0;
+  for(const w of worms){
+    if(!w.alive)continue;
+    const sx=w.x-cam.x,sy=w.y-cam.y;
+    if(sx<-500||sx>W+500||sy<-500||sy>H+500)continue;
+    let rad=CFG.lightBase+w.len*CFG.lightPer;
+    if(w.p)rad+=boost*Math.max(W,H)*1.25;
+    const g=lx.createRadialGradient(sx,sy,0,sx,sy,rad);
+    g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(.55,'rgba(0,0,0,.85)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    lx.fillStyle=g;lx.beginPath();lx.arc(sx,sy,rad,0,6.29);lx.fill();
+    // la cola también alumbra un poco
+    for(let i=10;i<w.path.length;i+=14){
+      const s=w.path[i],px=s.x-cam.x,py=s.y-cam.y,rr=rad*.34;
+      const g2=lx.createRadialGradient(px,py,0,px,py,rr);
+      g2.addColorStop(0,'rgba(0,0,0,.7)');g2.addColorStop(1,'rgba(0,0,0,0)');
+      lx.fillStyle=g2;lx.beginPath();lx.arc(px,py,rr,0,6.29);lx.fill();
+    }
+  }
+  lx.globalCompositeOperation='source-over';
+  x.drawImage(lc,0,0,W,H);
+
+  /* ── lo que BRILLA pero no ilumina: se dibuja encima de la oscuridad ── */
+  x.save();x.translate(-cam.x,-cam.y);
+  x.globalCompositeOperation='lighter';
+
+  for(const f of food){
+    if(f.y<cam.y-40||f.y>cam.y+H+40)continue;
+    x.shadowBlur=11;x.shadowColor=`hsl(${f.h},100%,62%)`;
+    x.fillStyle=`hsla(${f.h},100%,${f.v>2?78:66}%,${f.v>2?.95:.72})`;
+    x.beginPath();x.arc(f.x,f.y,f.r,0,6.29);x.fill();
+  }
+  for(const t of toxic){
+    if(t.y<cam.y-60||t.y>cam.y+H+60)continue;
+    const pl=.55+Math.sin(tk*.19+t.ph)*.45;
+    x.shadowBlur=22;x.shadowColor=`hsl(${t.h},100%,55%)`;
+    x.fillStyle=`hsla(${t.h},100%,58%,${.5+pl*.5})`;
+    x.beginPath();
+    for(let k=0;k<7;k++){
+      const a=k/7*6.29,rr=11+Math.sin(a*3+t.ph+tk*.05)*4.5;
+      k?x.lineTo(t.x+Math.cos(a)*rr,t.y+Math.sin(a)*rr):x.moveTo(t.x+Math.cos(a)*rr,t.y+Math.sin(a)*rr);
+    }
+    x.closePath();x.fill();
+  }
+  for(const q of parts){
+    x.fillStyle=`hsla(${q.h},100%,70%,${q.l})`;x.fillRect(q.x,q.y,3.4,3.4);
+  }
+  for(const g of glowFx){
+    x.strokeStyle=`hsla(${g.h},100%,70%,${g.l*.55})`;x.lineWidth=3;
+    x.beginPath();x.arc(g.x,g.y,g.r,0,6.29);x.stroke();
+  }
+  x.shadowBlur=0;x.globalCompositeOperation='source-over';
+
+  // nombres de rivales cercanos
+  x.font='600 11px Outfit';x.textAlign='center';
+  for(const w of worms){
+    if(!w.alive||w.p)continue;
+    const d=Math.hypot(w.x-p.x,w.y-p.y);
+    if(d<330){
+      const isN=nemesis===w.name;
+      x.fillStyle=isN?`rgba(255,80,110,${1-d/330})`:`rgba(237,242,255,${(1-d/330)*.62})`;
+      x.fillText(w.name,w.x,w.y-(16+w.len*.11));
+      if(isN){
+        x.strokeStyle=`rgba(255,60,100,${(1-d/330)*.6})`;x.lineWidth=2;
+        x.beginPath();x.arc(w.x,w.y,20+w.len*.12,0,6.29);x.stroke();
+      }
+    }
+  }
+  x.textAlign='left';
+
+  // techo de oscuridad
+  const cy=ceil-cam.y;
+  if(cy>-140){
+    const g=x.createLinearGradient(cam.x,cy-130,cam.x,cy+34);
+    g.addColorStop(0,'rgba(255,30,80,0)');g.addColorStop(.62,'rgba(120,10,40,.5)');
+    g.addColorStop(1,'rgba(2,3,8,1)');
+    x.fillStyle=g;x.fillRect(cam.x-10,cy-130,W+20,144);
+    x.fillStyle='#02030800';x.fillStyle='rgba(2,3,8,1)';
+    x.fillRect(cam.x-10,cy-600,W+20,600);
+  }
+  x.restore();
+
+  // grano
+  x.globalAlpha=.5;
+  for(let yy=0;yy<H;yy+=140)for(let xx=0;xx<W;xx+=140)x.drawImage(nz,xx,yy);
+  x.globalAlpha=1;
+}
+
+function loop(){ if(run)step(); render(); requestAnimationFrame(loop) }
+
+/* ═══════════════ PANTALLAS ═══════════════ */
+const veil=document.getElementById('veil');
+function endRun(){
+  run=false;
+  best=Math.max(best,depth);
+  if(lastKiller){
+    if(nemesis===lastKiller.name)nemCount++;else{nemesis=lastKiller.name;nemCount=1}
+  }
+  document.getElementById('deadInfo').style.display=lastKiller?'block':'none';
+  document.getElementById('who').textContent=lastKiller?lastKiller.name:'';
+  document.getElementById('fdep').textContent=depth;
+  document.getElementById('flab').textContent='METROS DE PROFUNDIDAD';
+  document.getElementById('fstats').style.display='flex';
+  document.getElementById('flen').textContent=Math.floor(P().len);
+  document.getElementById('fbest').textContent=best;
+  document.getElementById('fkill').textContent=kills;
+  document.getElementById('bRev').style.display=revived?'none':'block';
+  document.getElementById('bGo').textContent='NUEVO DESCENSO';
+  if(nemesis){
+    document.getElementById('nemBox').style.display='block';
+    document.getElementById('nemName').textContent=nemesis;
+    document.getElementById('nemCnt').textContent=nemCount+(nemCount>1?' muertes':' muerte');
+  }
+  veil.classList.add('on');
+}
+document.getElementById('bGo').onclick=()=>{reset();refreshFlare();
+  document.getElementById('tip').style.opacity=1;veil.classList.remove('on');run=true};
+document.getElementById('bRev').onclick=()=>{
+  // Fase 1: simulación del anuncio recompensado
+  revived=true;
+  const p=P();p.alive=true;p.len=Math.max(CFG.startLen,p.len*.7);
+  p.y=Math.max(p.y,ceil+H*.55);p.path=[];
+  for(let i=0;i<p.len*CFG.seg;i++)p.path.push({x:p.x,y:p.y});
+  for(const w of worms)if(!w.p&&Math.hypot(w.x-p.x,w.y-p.y)<230)killWorm(w,null);
+  flares=Math.max(flares,1);flareT=170;refreshFlare();
+  veil.classList.remove('on');run=true;
+};
+
+reset();refreshFlare();loop();
+</script>
+</body>
+</html>
