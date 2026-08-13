@@ -32,7 +32,7 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 .lb .r u{width:6px;height:6px;border-radius:2px;text-decoration:none;flex:none}
 .lb .r b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px}
 .lb .r em{font-style:normal;font-size:8px;opacity:.6}
-.hud2{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom) + 12px);z-index:5;
+.hud2{position:fixed;right:56px;bottom:calc(env(safe-area-inset-bottom) + 18px);z-index:5;
   font:700 10px JetBrains Mono,monospace;opacity:.4;color:#FFD24A}
 .pw{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom) + 58px);
   z-index:7;display:flex;flex-direction:column;gap:8px}
@@ -93,7 +93,7 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 <div class="lvup" id="lvup"><b>NIVEL 2</b><i>CRISTAL</i></div>
 <div class="pw" id="pw"></div>
 <div class="hud2">◈ <span id="hc">0</span> · <span id="hfps">60</span>fps</div>
-<button id="bSnd" style="position:fixed;right:14px;top:calc(env(safe-area-inset-top) + 150px);z-index:7;width:34px;height:34px;border-radius:11px;border:1px solid rgba(140,180,255,.25);background:rgba(8,12,24,.55);color:#EDF2FF;font:700 14px Outfit;opacity:.55">♪</button>
+<button id="bSnd" style="position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:7;width:32px;height:32px;border-radius:11px;border:1px solid rgba(140,180,255,.25);background:rgba(8,12,24,.55);color:#EDF2FF;font:700 14px Outfit;opacity:.55">♪</button>
 <div class="hint l">◀ turbo</div><div class="hint r">dirigir ▶</div>
 <div class="tip" id="tip">Derecha: arrastra para dirigir · Izquierda: acelerar<br>El mapa da la vuelta: no hay bordes</div>
 <div class="solo on" id="solo">
@@ -422,11 +422,11 @@ function occupied(px,py,rad,self){
 }
 // distancia libre en una dirección
 function clearance(b,ang,maxD){
-  const cx=Math.cos(ang),cy=Math.sin(ang),rr=10+b.len*.085,STEP=maxD/6;
+  const cx=Math.cos(ang),cy=Math.sin(ang),rr=10+b.len*.085,STEP=maxD/5;
   for(let t=STEP;t<=maxD;t+=STEP){
     const px=wrapX(b.x+cx*t),py=wrapY(b.y+cy*t);
-    if(occupied(px,py,rr,b))return t;
-    for(const s of tox)if(dist2(s.x,s.y,px,py)<(rr+20)**2)return t;
+    if(occupied(px,py,rr*1.05,b))return t-STEP*.5;
+    for(const s of tox)if(dist2(s.x,s.y,px,py)<(rr+22)*(rr+22))return t-STEP*.5;
   }
   return maxD;
 }
@@ -523,73 +523,72 @@ cv.addEventListener('lostpointercapture',up);
 
 function chooseGoal(b){
   const q=b.per;let best=null,bs=-1e9;
-  // comida, con bonificación por racimo (busca zonas ricas, no piezas sueltas)
-  for(let i=0;i<food.length;i+=2){
-    const f=food[i],ax=dX(f.x,b.x),ay=dY(f.y,b.y),d=Math.hypot(ax,ay);
-    if(d>620)continue;
-    let val=f.v*(f.d?30:1);
-    let c=0;
-    for(let j=0;j<food.length;j+=4){const g=food[j];
-      if(dist2(g.x,g.y,f.x,f.y)<20000)c+=g.d?3:1}
-    val=(val+c*.05)*q.f;
-    const s=val*260/(d+70);
-    if(s>bs){bs=s;best={t:'food',gx:f.x,gy:f.y,big:!!f.d}}}
-  // cazar cortando el paso
-  if(q.a>.2)for(const w of worms){
-    if(w===b||!w.alive)continue;
-    const ax=dX(w.x,b.x),ay=dY(w.y,b.y),d=Math.hypot(ax,ay);
-    if(d>460||d<26||w.len>b.len*.85)continue;
-    const lead=d/CFG.spd*.5*b.sk;
-    const s=(w.len*3.4+50)*q.a*300/(d+80);
-    if(s>bs){bs=s;best={t:'hunt',gx:wrapX(w.x+Math.cos(w.ang)*lead),gy:wrapY(w.y+Math.sin(w.ang)*lead)}}}
-  // huir de uno mayor que se acerca
+  for(let i=0;i<food.length;i++){
+    const f=food[i],ax=dX(f.x,b.x),ay=dY(f.y,b.y);
+    const d2=ax*ax+ay*ay;
+    if(d2>900*900)continue;
+    const d=Math.sqrt(d2);
+    let val=f.d?26:1;
+    if(f.d)val+=6;
+    const sc=val*q.f*340/(d+90);
+    if(sc>bs){bs=sc;best={t:'food',gx:f.x,gy:f.y,big:!!f.d}}}
   for(const w of worms){
     if(w===b||!w.alive)continue;
     const ax=dX(w.x,b.x),ay=dY(w.y,b.y),d=Math.hypot(ax,ay);
-    if(d>300||w.len<b.len*1.08)continue;
-    if(Math.cos(w.ang)*(-ax)+Math.sin(w.ang)*(-ay)>0){
-      const s=(760-d)*(1+q.c)*1.7*b.sk;
-      if(s>bs){bs=s;best={t:'flee',gx:wrapX(b.x-ax*3),gy:wrapY(b.y-ay*3)}}}}
-  b.goal=best;b.gT=best&&best.t!=='food'?7:14}
-
-const DIRS=14;
+    if(d<26)continue;
+    if(w.len<b.len*.86&&q.a>.2&&d<620){
+      const lead=Math.min(d*.55,d/CFG.spd*.42*b.sk);
+      const sc=(w.len*2.6+70)*q.a*300/(d+110);
+      if(sc>bs){bs=sc;best={t:'hunt',
+        gx:wrapX(w.x+Math.cos(w.ang)*lead),gy:wrapY(w.y+Math.sin(w.ang)*lead)}}}
+    if(w.len>b.len*1.12&&d<300){
+      if(Math.cos(w.ang)*(-ax)+Math.sin(w.ang)*(-ay)>0){
+        const sc=(680-d)*(.8+q.c)*1.5*b.sk;
+        if(sc>bs){bs=sc;best={t:'flee',
+          gx:wrapX(b.x-ax/d*400),gy:wrapY(b.y-ay/d*400)}}}}}
+  if(!best){
+    const a=b.ang+R(-.8,.8);
+    best={t:'roam',gx:wrapX(b.x+Math.cos(a)*400),gy:wrapY(b.y+Math.sin(a)*400)}}
+  b.goal=best;b.gT=best.t==='food'?9:6}
+const DIRS=13;
 function think(b,dt){
   const q=b.per;
   if((b.gT-=dt)<=0)chooseGoal(b);
   if((b.dT-=dt)>0)return;
-  b.dT=5;                                  // decide menos veces = rumbo estable
-  let gAng=b.ang,gd=999;
+  b.dT=3;
+  let gAng=b.ang,gd=99999;
   if(b.goal){
     const dx=dX(b.goal.gx,b.x),dy=dY(b.goal.gy,b.y);
     gd=Math.hypot(dx,dy);
-    if(gd<26){b.goal=null;b.gT=0}      // objetivo alcanzado: busca otro ya
+    if(gd<24){b.goal=null;b.gT=0;chooseGoal(b);
+      if(b.goal){const ex=dX(b.goal.gx,b.x),ey=dY(b.goal.gy,b.y);
+        gd=Math.hypot(ex,ey);gAng=Math.atan2(ey,ex)}}
     else gAng=Math.atan2(dy,dx)}
   b.gd=gd;
-  const look=(110+b.len*1.5+b.sk*90+(b.boost?70:0))*b.lvlSk;
-  let bestA=b.ang,bestS=-1e9,bestOff=0;
+  const rr=10+b.len*.085;
+  const need=52+rr*3.4;
+  const look=need+90+b.sk*70+(b.boost?70:0);
   if(b.lastOff===undefined)b.lastOff=0;
+  let bestA=b.ang,bestS=-1e9,bestOff=0;
   for(let i=0;i<DIRS;i++){
-    const off=(i-(DIRS-1)/2)*(2.4/DIRS)*2;      // abanico de ±2.4 rad
+    const off=(i-(DIRS-1)/2)*(2.5/DIRS)*2;
     const a=b.ang+off;
     const cl=clearance(b,a,look);
-    let dg=((gAng-a+Math.PI*3)%6.2832)-Math.PI;
+    const dg=((gAng-a+Math.PI*3)%6.2832)-Math.PI;
     const align=Math.cos(dg);
-    const safe=(cl/look);
-    let s=safe*(2.4+b.sk*1.8)+align*(1.0+q.f*.4)*b.lvlSk-Math.abs(off)*(.34-b.sk*.14);
-    if(cl<look*.35)s-=2.2;                       // penaliza callejones
-    s+=Math.max(0,.75-Math.abs(off-b.lastOff)*1.2);   // histéresis: seguir el rumbo
-    if(s>bestS){bestS=s;bestA=a;bestOff=off}}
-  b.lastOff=bestOff*.75;
-  // giro suave, como un pulgar humano: no salta de golpe al nuevo rumbo
-  if(b.tgt==null)b.tgt=bestA;
-  let td=((bestA-b.tgt+Math.PI*3)%6.2832)-Math.PI;
-  b.tgt+=td*Math.min(1,(.22+b.sk*.30)*dt*5);
+    let sc=align*2.8;
+    if(cl<need)sc-=(1-cl/need)*9;
+    else sc+=Math.min(1,(cl-need)/160)*.9;
+    sc-=Math.abs(off)*.18;
+    sc+=Math.max(0,.35-Math.abs(off-b.lastOff)*.6);
+    if(sc>bestS){bestS=sc;bestA=a;bestOff=off}}
+  b.lastOff=bestOff*.6;
+  b.tgt=bestA;
   const g=b.goal;
-  const wantB=b.tlen>CFG.start+14&&!!g&&
-    ((g.t==='hunt'&&gd<190)||(g.t==='flee'&&gd<260)||(g.t==='food'&&g.big&&gd<170));
-  // el turbo se enciende y se apaga con inercia, no parpadea
-  if(wantB&&!b.boost&&Math.random()<q.b*.06)b.boost=1;
-  else if(b.boost&&(!wantB||Math.random()<.05))b.boost=0;
+  const wantB=b.tlen>CFG.start+12&&!!g&&
+    ((g.t==='hunt'&&gd<210)||(g.t==='flee'&&gd<300)||(g.t==='food'&&g.big&&gd<260));
+  if(wantB&&!b.boost&&Math.random()<q.b*.10)b.boost=1;
+  else if(b.boost&&(!wantB||Math.random()<.04))b.boost=0;
 }
 function kill(w,by){
   if(!w.alive)return;
@@ -926,6 +925,7 @@ function render(){
 
 let last=performance.now(),fT=0,fC=0;
 function loop(now){
+  if(W!==innerWidth||H!==innerHeight||!cv.width)fit();
   const raw=now-last;let dt=raw/16.667;last=now;dt=Math.max(.35,Math.min(dt,2.8));
   fT+=raw;fC++;
   if(fC>=30){fpsV=Math.round(1000/(fT/fC));fT=0;fC=0;
@@ -1005,6 +1005,7 @@ const FONDOF={abisal:[[13,22,42],[104,128,168]],ceniza:[[26,24,28],[150,142,132]
  solar:[[36,22,6],[228,168,72]],nebulosa:[[18,8,40],[150,110,220]]};
 let mySkin=null,myFondo=null;
 function start(cfg){
+  fit();
   if(cfg&&cfg.skin&&SKINF[cfg.skin])mySkin=SKINF[cfg.skin];
   if(cfg&&cfg.fondo&&FONDOF[cfg.fondo])myFondo=FONDOF[cfg.fondo];
   if(cfg&&typeof cfg.sfx==='boolean')sfxOn=cfg.sfx;

@@ -366,6 +366,7 @@ const PCT_HAB=[.20,.13,.09,.07,.06,.05,.045,.04,.035,.03,
 const PCT_RED=[.24,.17,.13,.10,.08,.07,.06,.05,.05,.05];
 const PAID_HAB=PCT_HAB.length, PAID_RED=PCT_RED.length;                       /* puestos premiados = los que tienen % */
 let revived=false,shopTab='cons',rankTab='hab';
+const BOARDS={hab:[],red:[],clan:[]};
 const ADSGRAM_BLOCK=CFG.ADSGRAM_BLOCK_TASKS||'';
 let TASKS=[];
 function loadTasks(){
@@ -414,12 +415,20 @@ function prize(i,red){
 function paidCount(red){return red?PAID_RED:PAID_HAB}
 
 const frame=$('frame');
-function play(){revived=false;frame.classList.add('on');
+let gameReady=false;
+function sendStart(){
   frame.contentWindow.postMessage({type:'abisal:start',
     payload:{inv:{...S.inv},skin:S.skin,fondo:S.fondo,coins:0,
       sfx:S.sfx,music:S.music,lang:S.lang,name:S.name}},'*')}
+function play(){
+  revived=false;frame.classList.add('on');
+  if(gameReady)requestAnimationFrame(function(){requestAnimationFrame(sendStart)});
+  else{let n=0;const t=setInterval(function(){
+    if(gameReady||n++>40){clearInterval(t);sendStart()}},120)}}
 addEventListener('message',e=>{
-  const m=e.data||{};if(m.type!=='abisal:over')return;
+  const m=e.data||{};
+  if(m.type==='abisal:ready'){gameReady=true;return}
+  if(m.type!=='abisal:over')return;
   const d=m.payload;
   S.coins+=d.coins;S.runs++;S.kills+=d.kills;
   S.totalPts+=d.pts;S.xp+=d.pts;
@@ -438,8 +447,39 @@ addEventListener('message',e=>{
   $('oX2').style.display='none';
   $('oBX2').style.display=d.canX2?'block':'none';
   $('oBRev').style.display=(d.canRevive&&!revived)?'block':'none';
-  $('over').classList.add('on');refresh()});
-$('bPlay').onclick=play;
+  $('over').classList.add('on');refresh();
+  saveRun(d)});
+let SESSION=null;
+function api(path,body){
+  if(!CFG.API_BASE)return Promise.resolve(null);
+  return fetch(CFG.API_BASE+'/'+path,{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(Object.assign({initData:TG?TG.initData:''},body||{}))})
+    .then(function(r){return r.json()}).catch(function(){return null})}
+function saveRun(d){
+  if(!SESSION)return;
+  api('run',{session:SESSION,pts:d.pts,len:d.len,lvl:d.lvl,
+    secs:d.time,kills:d.kills,doubled:false,inv:S.inv});
+  SESSION=null}
+function openSession(){
+  return api('session').then(function(r){if(r&&r.session)SESSION=r.session})}
+function loadState(){
+  return api('state').then(function(r){
+    if(!r||!r.player)return;
+    const p=r.player;
+    S.coins=p.coins;S.stars=p.stars;S.best=p.best_pts;S.bestLen=p.best_len;
+    S.bestTime=p.best_time;S.totalTime=p.total_time;S.totalPts=p.total_pts;
+    S.runs=p.runs;S.kills=p.kills;S.wins=p.wins;S.streak=p.streak;
+    S.skin=p.skin;S.fondo=p.fondo;S.skins=p.skins||['neon'];
+    S.fondos=p.fondos||['abisal'];S.inv=p.inv||S.inv;S.netPts=p.net_pts;
+    S.name=p.display_name||S.name;S.adsToday=r.adsToday||0;
+    if(r.cycle){POT.usd=r.cycle.usd;POT.target=r.cycle.target_xp;
+      POT.current=r.cycle.current_xp;POT.deadline=r.cycle.deadline}
+    if(r.boards){BOARDS.hab=(r.boards.hab||[]).map(function(x){return [x.name,x.pts]});
+      BOARDS.red=(r.boards.red||[]).map(function(x){return [x.name,x.pts]});
+      BOARDS.clan=(r.boards.clans||[]).map(function(x){return [x.name,x.members,x.week_pts]})}
+    refresh();drawShop();drawRank()})}
+$('bPlay').onclick=function(){openSession().then(play)};
 $('oAgain').onclick=()=>{$('over').classList.remove('on');play()};
 $('oMenu').onclick=()=>{$('over').classList.remove('on');frame.classList.remove('on');
   frame.contentWindow.postMessage({type:'abisal:stop'},'*')};
@@ -598,7 +638,8 @@ function drawRank(){
    '<div class="pct"><span>'+Math.floor(pc)+'%</span><span>'+
      L.potLeft(Math.max(0,POT.target-xpNow))+'</span></div>')+'</div>';
   if(rankTab==='clan'){
-    const rows=FKC.map(function(c,i){
+    const CL=BOARDS.clan.length?BOARDS.clan:FKC;
+    const rows=CL.map(function(c,i){
       return '<div class="row"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
       '<div class="tx"><b>'+c[0]+'</b><i>'+c[1]+' '+L.members+'</i></div>'+
       '<div class="sc">'+c[2]+'</div></div>'}).join('');
@@ -618,7 +659,9 @@ function drawRank(){
     const cl=$('clanLeave');
     if(cl)cl.onclick=function(){S.clan=null;S.clanRole=null;drawRank()};
     return}
-  const red=rankTab==='red',list=red?FKR:FK,mine=red?S.netPts:S.best;
+  const red=rankTab==='red';
+  const list=red?(BOARDS.red.length?BOARDS.red:FKR):(BOARDS.hab.length?BOARDS.hab:FK);
+  const mine=red?S.netPts:S.best;
   const rows=list.map(function(r,i){
     return '<div class="row"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
     '<div class="nm">'+r[0]+'</div><div class="sc">'+r[1]+'</div>'+
@@ -792,7 +835,7 @@ if(TG){try{TG.ready();TG.expand();
   if(TG.setHeaderColor)TG.setHeaderColor('#070417');
   if(TG.setBackgroundColor)TG.setBackgroundColor('#070417');
   if(TG.disableVerticalSwipes)TG.disableVerticalSwipes()}catch(e){}}
-applyLang();refresh();drawShop();drawRank();drawFriends();loadTasks();
+applyLang();refresh();drawShop();drawRank();drawFriends();loadTasks();loadState();
 </script>
 </body>
 </html>

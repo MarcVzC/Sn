@@ -1,12 +1,13 @@
 window.ABISAL_CFG = {
 
+  API_BASE: "",
+
+  BOT_USER: "AbisalGameBot",
+  APP_NAME: "abisal",
+
   ADSGRAM_BLOCK_REWARD: "",
   ADSGRAM_BLOCK_TASKS:  "",
   ADSGRAM_ENABLED:      false,
-
-  API_BASE:   "",
-  BOT_USER:   "AbisalGameBot",
-  APP_NAME:   "abisal",
 
   POT: {
     usd:      100,
@@ -16,14 +17,9 @@ window.ABISAL_CFG = {
   },
 
   PRICES: {
-    clanCreate:   2500,
-    clanRename:   800,
-    userRename:   500,
-    starPacks: [
-      { id: "p1", stars: 50,  bonus: 0   },
-      { id: "p2", stars: 150, bonus: 20  },
-      { id: "p3", stars: 400, bonus: 80  }
-    ]
+    clanCreate: 2500,
+    clanRename: 800,
+    userRename: 0
   },
 
   LIMITS: {
