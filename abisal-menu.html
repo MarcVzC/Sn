@@ -207,7 +207,7 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
   <div class="rows" id="frList"></div>
   <button class="cta" id="bInvite"></button>
   <button class="cta gh" id="bCopy"></button>
-  <div id="frLink" style="margin-top:10px;font:600 10px JetBrains Mono,monospace;color:var(--mute);word-break:break-all;text-align:center"></div>
+  
 </div>
 
 <nav class="nav" id="nav">
@@ -411,7 +411,8 @@ function payStars(item,amount,onOk){
 function prize(i,red){
   const t=red?PCT_RED:PCT_HAB, bolsa=POT.usd*(red?.4:.6);
   const v=Math.floor(bolsa*(t[i]||0));
-  return v>0?v:0}
+  return v>=1?v:0}
+const prizeTxt=(i,red)=>{const v=prize(i,red);return v>=1?'$'+v:'—'};
 function paidCount(red){return red?PAID_RED:PAID_HAB}
 
 const frame=$('frame');
@@ -665,13 +666,13 @@ function drawRank(){
   const rows=list.map(function(r,i){
     return '<div class="row"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
     '<div class="nm">'+r[0]+'</div><div class="sc">'+r[1]+'</div>'+
-    '<div class="pz">$'+prize(i,red)+'</div></div>'}).join('');
+    '<div class="pz">'+prizeTxt(i,red)+'</div></div>'}).join('');
   const pos=list.filter(function(r){return r[1]>mine}).length+1;
   $('rankBody').innerHTML='<div class="psub">'+(red?L.redSub(PAID_RED):L.habSub(PAID_HAB))+'</div>'+pot+
    '<div class="rows">'+rows+
    '<div class="row me"><div class="rk">'+pos+'</div><div class="nm">'+S.name+'</div>'+
    '<div class="sc">'+mine+'</div><div class="pz">'+
-   (pos<=paidCount(red)&&prize(pos-1,red)>0?'$'+prize(pos-1,red):'—')+'</div></div></div>'}
+   prizeTxt(pos-1,red)+'</div></div></div>'}
 
 function drawProfile(){
   $('hProfile').textContent=L.profile;
@@ -744,7 +745,7 @@ function drawFriends(){
   $('frList').innerHTML=head+body;
   $('frHead').onclick=function(){S.frOpen=!S.frOpen;drawFriends()};
   $('bInvite').textContent=L.invite;$('bCopy').textContent=L.copy;
-  const lk=$('frLink');if(lk)lk.textContent=myLink()}
+}
 function myLink(){
   const bot=(CFG.BOT_USER||'AbisalGameBot').replace('@','');
   const app=(CFG.APP_NAME||'abisal');

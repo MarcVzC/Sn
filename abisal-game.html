@@ -15,8 +15,9 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 .len{font:700 30px JetBrains Mono,monospace;line-height:1}
 .len small{font:600 9px Outfit;letter-spacing:.26em;opacity:.45;display:block;margin-top:4px}
 .len span{transition:color .18s}
-.pts{margin-top:7px;font:700 15px JetBrains Mono,monospace;color:#C6FF4A}
-.pts i{font-style:normal;font:600 8px Outfit;letter-spacing:.24em;opacity:.5}
+.pts{font:700 30px JetBrains Mono,monospace;color:#C6FF4A;line-height:1}
+.pts i{font-style:normal;font:600 9px Outfit;letter-spacing:.26em;opacity:.45;display:block;margin-top:4px}
+.lb h4 b{font-weight:700;letter-spacing:.14em}
 .lvl{display:flex;align-items:center;gap:7px;margin-top:10px}
 .lvl b{font:700 10px Chakra Petch;letter-spacing:.2em;padding:3px 8px;border-radius:6px;
   background:rgba(120,180,255,.14);border:1px solid rgba(140,190,255,.3)}
@@ -81,19 +82,17 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 <canvas id="cv"></canvas>
 <div class="ui"><div class="top">
   <div>
-    <div class="len"><span id="hl">10</span><small>LARGO</small></div>
     <div class="pts"><span id="hp">0</span> <i>PTS</i></div>
     <div class="lvl"><b id="lv">NIVEL 1</b><span id="tm">0:00</span></div>
     <div class="bar"><i id="pb" style="width:0%"></i></div>
-    <div class="bio" id="biome">RAÍCES</div>
   </div>
-  <div class="lb"><h4>EN LA CAVERNA</h4><div id="lbb"></div></div>
+  <div class="lb"><h4><span id="hcave">EN LA CAVERNA</span> · <b id="biome" style="color:#8FD8FF">RAÍCES</b></h4><div id="lbb"></div></div>
 </div></div>
 <div class="feed" id="feed"></div>
 <div class="lvup" id="lvup"><b>NIVEL 2</b><i>CRISTAL</i></div>
 <div class="pw" id="pw"></div>
 <div class="hud2">◈ <span id="hc">0</span> · <span id="hfps">60</span>fps</div>
-<button id="bSnd" style="position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:7;width:32px;height:32px;border-radius:11px;border:1px solid rgba(140,180,255,.25);background:rgba(8,12,24,.55);color:#EDF2FF;font:700 14px Outfit;opacity:.55">♪</button>
+<button id="bSnd" style="position:fixed;left:14px;top:calc(env(safe-area-inset-top) + 96px);z-index:7;width:32px;height:32px;border-radius:11px;border:1px solid rgba(140,180,255,.25);background:rgba(8,12,24,.55);color:#EDF2FF;font:700 14px Outfit;opacity:.55">♪</button>
 <div class="hint l">◀ turbo</div><div class="hint r">dirigir ▶</div>
 <div class="tip" id="tip">Derecha: arrastra para dirigir · Izquierda: acelerar<br>El mapa da la vuelta: no hay bordes</div>
 <div class="solo on" id="solo">
@@ -267,8 +266,7 @@ const STR={
   pup:{esc:'SHIELD',ima:'MAGNET',des:'FLASH'}}};
 const T=STR[LG];
 function applyLang(){
-  document.querySelector('.len small').textContent=T.len;
-  document.querySelector('.lb h4').textContent=T.cave;
+  const hc=document.getElementById('hcave');if(hc)hc.textContent=T.cave;
   document.querySelector('.hint.l').textContent='◀ '+T.turbo;
   document.querySelector('.hint.r').textContent=T.steer+' ▶';
   document.getElementById('tip').innerHTML=T.tip;
@@ -311,10 +309,14 @@ const cv=document.getElementById('cv'),x=cv.getContext('2d',{alpha:false});
 const lc=document.createElement('canvas'),lx=lc.getContext('2d');
 const bc=document.createElement('canvas'),bx=bc.getContext('2d');
 let W,H,DPR,LS=.34,BS=.25;
-function fit(){DPR=Math.min(devicePixelRatio||1,1.5);W=innerWidth;H=innerHeight;
-  cv.width=W*DPR;cv.height=H*DPR;x.setTransform(DPR,0,0,DPR,0,0);
-  lc.width=Math.ceil(W*LS);lc.height=Math.ceil(H*LS);
-  bc.width=Math.ceil(W*BS);bc.height=Math.ceil(H*BS)}
+function fit(){
+  DPR=Math.min(devicePixelRatio||1,1.5);
+  W=Math.max(1,innerWidth||document.documentElement.clientWidth||360);
+  H=Math.max(1,innerHeight||document.documentElement.clientHeight||640);
+  cv.width=Math.max(1,Math.ceil(W*DPR));cv.height=Math.max(1,Math.ceil(H*DPR));
+  x.setTransform(DPR,0,0,DPR,0,0);
+  lc.width=Math.max(2,Math.ceil(W*LS));lc.height=Math.max(2,Math.ceil(H*LS));
+  bc.width=Math.max(2,Math.ceil(W*BS));bc.height=Math.max(2,Math.ceil(H*BS))}
 addEventListener('resize',fit);fit();
 
 const wrapX=v=>((v%MW)+MW)%MW,wrapY=v=>((v%MH)+MH)%MH;
@@ -686,13 +688,12 @@ function step(dt){
   for(const g of fx){g.r+=9*dt;g.l-=.035*dt}fx=fx.filter(g=>g.l>0);
   for(const m of motes){m.y-=m.z*.5*dt;if(m.y<-10){m.y=H+10;m.x=R(0,W)}}
   if(p.len>maxLen)maxLen=p.len;
-  const el=document.getElementById('hl');
-  el.textContent=Math.floor(p.len);
-  if(p.len>prevLen+.02)el.style.color='#C6FF4A';        // sube: verde
-  else if(p.len<prevLen-.02)el.style.color='#FF6B85';   // baja: rojo
+  const el=document.getElementById('hp');
+  el.textContent=calcPts();
+  if(p.len>prevLen+.02)el.style.color='#C6FF4A';
+  else if(p.len<prevLen-.02)el.style.color='#FF6B85';
   else el.style.color='';
   prevLen=p.len;
-  document.getElementById('hp').textContent=calcPts();
   document.getElementById('hc').textContent=coins;
   document.getElementById('tm').textContent=fmt(tmr);
   document.getElementById('pb').style.width=((tmr%CFG.lvlTime)/CFG.lvlTime*100).toFixed(1)+'%';
@@ -925,12 +926,16 @@ function render(){
 
 let last=performance.now(),fT=0,fC=0;
 function loop(now){
-  if(W!==innerWidth||H!==innerHeight||!cv.width)fit();
+  requestAnimationFrame(loop);
+  if(!now)now=performance.now();
+  const iw=innerWidth||document.documentElement.clientWidth;
+  const ih=innerHeight||document.documentElement.clientHeight;
+  if(iw&&ih&&(W!==iw||H!==ih||!cv.width||!lc.width))fit();
   const raw=now-last;let dt=raw/16.667;last=now;dt=Math.max(.35,Math.min(dt,2.8));
   fT+=raw;fC++;
   if(fC>=30){fpsV=Math.round(1000/(fT/fC));fT=0;fC=0;
     document.getElementById('hfps').textContent=fpsV}
-  if(run)step(dt);render();requestAnimationFrame(loop)}
+  try{ if(run)step(dt); render(); }catch(err){ console.error(err) }}
 
 function send(type,payload){
   if(embedded)parent.postMessage({type,payload},'*')}
