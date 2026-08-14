@@ -35,13 +35,15 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 .lb .r em{font-style:normal;font-size:8px;opacity:.6}
 .hud2{position:fixed;right:56px;bottom:calc(env(safe-area-inset-bottom) + 18px);z-index:5;
   font:700 10px JetBrains Mono,monospace;opacity:.4;color:#FFD24A}
-.pw{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom) + 58px);
+.pw{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom) + 168px);
   z-index:7;display:flex;flex-direction:column;gap:8px}
 .pw button{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;
   font:700 16px Chakra Petch;border:1.5px solid;background:rgba(6,10,22,.6);position:relative;color:inherit}
 .pw button:active{transform:scale(.93)}
 .pw button.no{opacity:.2}
 .pw button.act{box-shadow:0 0 18px currentColor}
+.pw button u{position:absolute;left:0;right:0;bottom:3px;text-decoration:none;
+  font:700 8px JetBrains Mono,monospace;opacity:.9}
 .pw button em{position:absolute;right:-3px;top:-4px;font-style:normal;font:700 9px JetBrains Mono,monospace;
   background:#0A1020;border:1px solid currentColor;border-radius:8px;padding:1px 4px}
 .hint{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 22px);z-index:4;pointer-events:none;
@@ -308,9 +310,25 @@ let coins=0,inv={esc:1,ima:1,des:1},embedded=(window.parent!==window);
 const cv=document.getElementById('cv'),x=cv.getContext('2d',{alpha:false});
 const lc=document.createElement('canvas'),lx=lc.getContext('2d');
 const bc=document.createElement('canvas'),bx=bc.getContext('2d');
-let W,H,DPR,LS=.34,BS=.25;
+let W,H,DPR,LS=.34,BS=.25,QU=2,bloomOn=true;
+const INTG=!!(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData!==undefined)
+  ||window.parent!==window;
+let Q=INTG?1:2;              // 2 alto · 1 medio · 0 bajo
+let qAcc=0,qN=0;
+function quality(fps){
+  qAcc+=fps;qN++;
+  if(qN<20)return;
+  const avg=qAcc/qN;qAcc=0;qN=0;
+  if(avg<34&&Q>0){Q--;applyQ()}
+  else if(avg>54&&Q<2){Q++;applyQ()}}
+function applyQ(){
+  LS=Q===2?.34:(Q===1?.26:.20);
+  BS=Q===2?.25:.18;
+  CFG.food=Q===2?340:(Q===1?230:150);
+  CFG.bots=Q===2?13:(Q===1?11:9);
+  fit()}
 function fit(){
-  DPR=Math.min(devicePixelRatio||1,1.5);
+  DPR=Q===2?Math.min(devicePixelRatio||1,1.5):1;
   W=Math.max(1,innerWidth||document.documentElement.clientWidth||360);
   H=Math.max(1,innerHeight||document.documentElement.clientHeight||640);
   cv.width=Math.max(1,Math.ceil(W*DPR));cv.height=Math.max(1,Math.ceil(H*DPR));
@@ -472,7 +490,7 @@ function reset(){
   document.getElementById('lv').textContent=T.lvl+' 1';
   document.getElementById('biome').textContent=biome.n;
   buildRocks();
-  const p=mkW(true,MW/2,MH/2);seedPath(p);worms.push(p);
+  const p=mkW(true,MW/2,MH/2);p.hue=myHue;seedPath(p);worms.push(p);
   cam={x:p.x,y:p.y};
   for(let i=0;i<CFG.tox;i++)tox.push(mkT());
   for(let i=0;i<CFG.bots;i++){const s=safeSpawn()||{x:R(0,MW),y:R(0,MH)};
@@ -526,32 +544,37 @@ cv.addEventListener('lostpointercapture',up);
 function chooseGoal(b){
   const q=b.per;let best=null,bs=-1e9;
   for(let i=0;i<food.length;i++){
-    const f=food[i],ax=dX(f.x,b.x),ay=dY(f.y,b.y);
-    const d2=ax*ax+ay*ay;
-    if(d2>900*900)continue;
+    const f=food[i],ax=dX(f.x,b.x),ay=dY(f.y,b.y),d2=ax*ax+ay*ay;
+    if(d2>800*800)continue;
     const d=Math.sqrt(d2);
-    let val=f.d?26:1;
-    if(f.d)val+=6;
-    const sc=val*q.f*340/(d+90);
+    const sc=(f.d?30:1)*q.f*340/(d+90);
     if(sc>bs){bs=sc;best={t:'food',gx:f.x,gy:f.y,big:!!f.d}}}
   for(const w of worms){
-    if(w===b||!w.alive)continue;
+    if(w===b||!w.alive||w.new>0)continue;
     const ax=dX(w.x,b.x),ay=dY(w.y,b.y),d=Math.hypot(ax,ay);
-    if(d<26)continue;
-    if(w.len<b.len*.86&&q.a>.2&&d<620){
-      const lead=Math.min(d*.55,d/CFG.spd*.42*b.sk);
-      const sc=(w.len*2.6+70)*q.a*300/(d+110);
-      if(sc>bs){bs=sc;best={t:'hunt',
-        gx:wrapX(w.x+Math.cos(w.ang)*lead),gy:wrapY(w.y+Math.sin(w.ang)*lead)}}}
-    if(w.len>b.len*1.12&&d<300){
+    if(d<20||d>700)continue;
+    const ratio=w.len/b.len;
+    if(ratio<1.18){
+      const ahead=Math.cos(w.ang)*ax+Math.sin(w.ang)*ay;
+      const lead=Math.min(d*.85,(d/CFG.spd)*CFG.spd*.75)*(.5+b.sk*.6);
+      const cx=wrapX(w.x+Math.cos(w.ang)*lead),cy=wrapY(w.y+Math.sin(w.ang)*lead);
+      const cd=Math.hypot(dX(cx,b.x),dY(cy,b.y));
+      const reach=cd/(b.boost?CFG.boost:CFG.spd);
+      const theirs=lead/CFG.spd;
+      let sc=(60+w.len*3.2)*(0.8+q.a*2.2)*420/(d+120);
+      if(reach<theirs*1.35)sc*=1.9;
+      if(ratio<.75)sc*=1.4;
+      if(ahead<0)sc*=1.25;
+      if(sc>bs){bs=sc;best={t:'hunt',gx:cx,gy:cy,ref:w}}}
+    else if(d<280){
       if(Math.cos(w.ang)*(-ax)+Math.sin(w.ang)*(-ay)>0){
-        const sc=(680-d)*(.8+q.c)*1.5*b.sk;
+        const sc=(700-d)*(.6+q.c*1.4)*1.6*b.sk;
         if(sc>bs){bs=sc;best={t:'flee',
-          gx:wrapX(b.x-ax/d*400),gy:wrapY(b.y-ay/d*400)}}}}}
+          gx:wrapX(b.x-ax/d*420),gy:wrapY(b.y-ay/d*420)}}}}}
   if(!best){
-    const a=b.ang+R(-.8,.8);
-    best={t:'roam',gx:wrapX(b.x+Math.cos(a)*400),gy:wrapY(b.y+Math.sin(a)*400)}}
-  b.goal=best;b.gT=best.t==='food'?9:6}
+    const a=b.ang+R(-.7,.7);
+    best={t:'roam',gx:wrapX(b.x+Math.cos(a)*420),gy:wrapY(b.y+Math.sin(a)*420)}}
+  b.goal=best;b.gT=best.t==='hunt'?4:(best.t==='food'?9:6)}
 const DIRS=13;
 function think(b,dt){
   const q=b.per;
@@ -559,6 +582,12 @@ function think(b,dt){
   if((b.dT-=dt)>0)return;
   b.dT=3;
   let gAng=b.ang,gd=99999;
+  if(b.goal&&b.goal.t==='hunt'){
+    const w=b.goal.ref;
+    if(!w||!w.alive||w.len>b.len*1.25){b.goal=null;b.gT=0;chooseGoal(b)}
+    else{const lead=Math.min(160,Math.hypot(dX(w.x,b.x),dY(w.y,b.y))*.6);
+      b.goal.gx=wrapX(w.x+Math.cos(w.ang)*lead);
+      b.goal.gy=wrapY(w.y+Math.sin(w.ang)*lead)}}
   if(b.goal){
     const dx=dX(b.goal.gx,b.x),dy=dY(b.goal.gy,b.y);
     gd=Math.hypot(dx,dy);
@@ -579,7 +608,8 @@ function think(b,dt){
     const dg=((gAng-a+Math.PI*3)%6.2832)-Math.PI;
     const align=Math.cos(dg);
     let sc=align*2.8;
-    if(cl<need)sc-=(1-cl/need)*9;
+    const aggro=(b.goal&&b.goal.t==='hunt')?.55:1;
+    if(cl<need)sc-=(1-cl/need)*9*aggro;
     else sc+=Math.min(1,(cl-need)/160)*.9;
     sc-=Math.abs(off)*.18;
     sc+=Math.max(0,.35-Math.abs(off-b.lastOff)*.6);
@@ -587,9 +617,9 @@ function think(b,dt){
   b.lastOff=bestOff*.6;
   b.tgt=bestA;
   const g=b.goal;
-  const wantB=b.tlen>CFG.start+12&&!!g&&
-    ((g.t==='hunt'&&gd<210)||(g.t==='flee'&&gd<300)||(g.t==='food'&&g.big&&gd<260));
-  if(wantB&&!b.boost&&Math.random()<q.b*.10)b.boost=1;
+  const wantB=b.tlen>CFG.start+9&&!!g&&
+    ((g.t==='hunt'&&gd<300)||(g.t==='flee'&&gd<300)||(g.t==='food'&&g.big&&gd<260));
+  if(wantB&&!b.boost&&Math.random()<q.b*.22)b.boost=1;
   else if(b.boost&&(!wantB||Math.random()<.04))b.boost=0;
 }
 function kill(w,by){
@@ -627,6 +657,7 @@ function step(dt){
   if(flash>0)flash-=dt;
   if(p.ima>0){p.ima-=dt;if(p.ima<0){p.ima=0;pwHud()}}
   if(p.esc>0){p.esc-=dt;if(p.esc<0){p.esc=0;pwHud()}}
+  if(tk%12===0&&(p.ima>0||p.esc>0))pwHud();
   gridBuild();
   for(const w of worms){
     if(!w.alive)continue;
@@ -723,12 +754,14 @@ function drawWorm(w){
   x.globalAlpha=w.new>0?.45+Math.sin(tk*.3)*.25:1;
   x.lineCap='round';x.lineJoin='round';x.setLineDash([]);
   x.beginPath();pathScreen(x,pa,1);
-  x.strokeStyle=`hsla(${w.hue},100%,58%,.13)`;x.lineWidth=r*3.2;x.stroke();
+  if(Q>=1){x.strokeStyle=`hsla(${w.hue},100%,58%,.13)`;x.lineWidth=r*3.2;x.stroke()}
   x.strokeStyle=`hsla(${w.hue},100%,62%,.3)`;x.lineWidth=r*2.0;x.stroke();
   if(w.p&&mySkin){const c=mySkin(6,tk);
-    x.strokeStyle='hsla('+c[0]+','+c[1]+'%,'+(c[2]+(w.boost?12:0))+'%,.96)'}
+    x.strokeStyle='hsla('+c[0]+','+c[1]+'%,'+Math.min(92,c[2]+(w.boost?14:0))+'%,.96)'}
   else x.strokeStyle=`hsla(${w.hue},100%,${w.boost?84:68}%,.96)`;
   x.lineWidth=r*1.25;x.stroke();
+  if(Q===0&&!w.p){x.globalAlpha=1;const gh=r*4.9;
+    x.drawImage(gi(w.hue),sx(w.x)-gh/2,sy(w.y)-gh/2,gh,gh);return}
   const vis=i=>{const px=sx(pa[i].x),py=sy(pa[i].y);
     return(px>-50&&px<W+50&&py>-50&&py<H+50)?[px,py]:null};
   const nrm=i=>Math.atan2(dY(pa[i+1].y,pa[i].y),dX(pa[i+1].x,pa[i].x))+1.5708;
@@ -801,7 +834,7 @@ function render(){
   if(shake>.4){x.translate(R(-shake,shake),R(-shake,shake));shake*=.85}
   const bg=myFondo?myFondo[0]:biome.bg,rk=myFondo?myFondo[1]:biome.rock;
   x.fillStyle=`rgb(${bg[0]},${bg[1]},${bg[2]})`;x.fillRect(-20,-20,W+40,H+40);
-  const G=150,gx0=Math.floor((cam.x-W/2)/G)*G,gy0=Math.floor((cam.y-H/2)/G)*G;
+  const G=QU>=2?150:210,gx0=Math.floor((cam.x-W/2)/G)*G,gy0=Math.floor((cam.y-H/2)/G)*G;
   for(let yy=gy0-G;yy<cam.y+H/2+G;yy+=G)for(let xx=gx0-G;xx<cam.x+W/2+G;xx+=G){
     const s=hsh(wrapX(xx)*.013,wrapY(yy)*.013);
     x.fillStyle=`rgba(${rk[0]*.34+s*22|0},${rk[1]*.34+s*26|0},${rk[2]*.36+s*30|0},.55)`;
@@ -887,6 +920,8 @@ function render(){
         x.beginPath();x.arc(sx(w.x),sy(w.y),22+w.len*.11,0,6.29);x.stroke()}}}
   x.textAlign='left';
 
+  if(Q>=2){
+  if(!bloomOn)return;
   bx.setTransform(1,0,0,1,0,0);bx.globalCompositeOperation='source-over';
   bx.clearRect(0,0,bc.width,bc.height);bx.lineCap='round';bx.lineJoin='round';
   for(const w of worms){
@@ -902,7 +937,8 @@ function render(){
   x.globalCompositeOperation='lighter';
   x.globalAlpha=.52;x.drawImage(bc,-6,-6,W+12,H+12);
   x.globalAlpha=.3;x.drawImage(bc,-18,-18,W+36,H+36);
-  x.globalAlpha=1;
+  x.globalAlpha=1;}
+  x.globalCompositeOperation='lighter';
   for(const m of motes){x.fillStyle=`rgba(150,220,255,${.05+m.z*.13})`;
     x.beginPath();x.arc(m.x,m.y,m.s*m.z*1.4,0,6.29);x.fill()}
   x.globalCompositeOperation='source-over';
@@ -919,7 +955,7 @@ function render(){
     gk.addColorStop(0,`rgba(190,235,255,${.26+stM*.22})`);
     gk.addColorStop(1,'rgba(150,215,255,0)');
     x.fillStyle=gk;x.beginPath();x.arc(kx,ky,17,0,6.29);x.fill()}
-  x.fillStyle=NPAT;x.globalAlpha=.4;x.fillRect(0,0,W,H);x.globalAlpha=1;
+  if(Q>=2){x.fillStyle=NPAT;x.globalAlpha=.4;x.fillRect(0,0,W,H);x.globalAlpha=1}
   const vg=x.createRadialGradient(W/2,H/2,Math.min(W,H)*.4,W/2,H/2,Math.max(W,H)*.78);
   vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.6)');
   x.fillStyle=vg;x.fillRect(0,0,W,H)}
@@ -934,7 +970,8 @@ function loop(now){
   const raw=now-last;let dt=raw/16.667;last=now;dt=Math.max(.35,Math.min(dt,2.8));
   fT+=raw;fC++;
   if(fC>=30){fpsV=Math.round(1000/(fT/fC));fT=0;fC=0;
-    document.getElementById('hfps').textContent=fpsV}
+    document.getElementById('hfps').textContent=fpsV;
+    if(run)quality(fpsV)}
   try{ if(run)step(dt); render(); }catch(err){ console.error(err) }}
 
 function send(type,payload){
@@ -1008,10 +1045,12 @@ const SKINF={
 const FONDOF={abisal:[[13,22,42],[104,128,168]],ceniza:[[26,24,28],[150,142,132]],
  esmeralda:[[8,30,24],[86,176,140]],carmesi:[[32,8,16],[190,80,90]],
  solar:[[36,22,6],[228,168,72]],nebulosa:[[18,8,40],[150,110,220]]};
-let mySkin=null,myFondo=null;
+let mySkin=null,myFondo=null,myHue=188;
 function start(cfg){
   fit();
-  if(cfg&&cfg.skin&&SKINF[cfg.skin])mySkin=SKINF[cfg.skin];
+  if(cfg&&cfg.skin&&SKINF[cfg.skin]){mySkin=SKINF[cfg.skin];
+    const c0=mySkin(0,0);myHue=((c0[0]%360)+360)%360}
+  else{mySkin=null;myHue=188}
   if(cfg&&cfg.fondo&&FONDOF[cfg.fondo])myFondo=FONDOF[cfg.fondo];
   if(cfg&&typeof cfg.sfx==='boolean')sfxOn=cfg.sfx;
   if(cfg&&typeof cfg.music==='boolean')musOn=cfg.music;

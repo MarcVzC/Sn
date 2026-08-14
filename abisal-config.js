@@ -5,28 +5,15 @@ window.ABISAL_CFG = {
   BOT_USER: "AbisalGameBot",
   APP_NAME: "abisal",
 
-  ADSGRAM_BLOCK_REWARD: "",
-  ADSGRAM_BLOCK_TASKS:  "",
-  ADSGRAM_ENABLED:      false,
+  ADSGRAM_BLOCK_REWARD: "42738",
+  ADSGRAM_BLOCK_TASKS:  "task-42739",
+  ADSGRAM_ENABLED:      true,
 
-  POT: {
-    usd:      100,
-    target:   10000,
-    current:  0,
-    deadline: null
-  },
+  POT: { usd: 100, raised: 0, deadline: null },
 
-  PRICES: {
-    clanCreate: 2500,
-    clanRename: 800,
-    userRename: 0
-  },
+  PRICES: { clanCreate: 2500, clanRename: 800, userRename: 0 },
 
-  LIMITS: {
-    adsPerDay:    12,
-    clanMax:      30,
-    tasksVisible: 6
-  },
+  LIMITS: { adsPerDay: 12, clanMax: 30, tasksVisible: 6 },
 
   ECONOMY: {
     coinsPerKill: 25,

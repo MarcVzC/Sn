@@ -262,8 +262,8 @@ const DICT={
   habSub:n=>'Tu mejor partida del ciclo · '+n+' premiados',
   redSubTitle:'Reclutadores',
   redSub:n=>'Ganas por lo que juegan tus amigos · '+n+' premiados',
-  potLbl:'energía de la colonia',potNote:'se reparte al llenarse la barra',
-  potLeft:n=>'faltan '+n+' XP',you:'Tú',potDate:d=>'se entrega el '+d,
+  potLbl:'recaudado',potNote:'se reparte al completarse',
+  potLeft:n=>'faltan '+n,you:'Tú',potDate:d=>'se entrega el '+d,
   tasks:'Tareas',taskSub:'Completa y gana monedas',taskDone:'HECHO',taskGo:'IR',
   taskEmpty:'No hay tareas disponibles ahora',taskPending:'Aún sin confirmar. Inténtalo en un momento',
   friends:'Amigos',frSub:'Ganas puntos según lo que jueguen ellos, no según cuántos traigas',
@@ -297,8 +297,8 @@ const DICT={
   rank:'Ranking',tabHab:'Top players',tabRed:'Recruiters',
   habSub:n=>'Your best run of the cycle · top '+n+' paid',
   redSub:n=>'You earn from what your friends play · top '+n+' paid',
-  potLbl:'colony energy',potNote:'paid out when the bar fills',
-  potLeft:n=>n+' XP to go',you:'You',potDate:d=>'paid on '+d,
+  potLbl:'raised',potNote:'paid out when complete',
+  potLeft:n=>n+' to go',you:'You',potDate:d=>'paid on '+d,
   tasks:'Tasks',taskSub:'Complete them and earn coins',taskDone:'DONE',taskGo:'GO',
   taskEmpty:'No tasks available right now',taskPending:'Not confirmed yet. Try again shortly',
   friends:'Friends',frSub:'You earn from what they play, not from how many you bring',
@@ -326,7 +326,7 @@ const S={coins:0,stars:0,best:0,bestLen:0,bestTime:0,totalTime:0,totalPts:0,stre
   nemesis:null,nemCnt:0,adsToday:0,
   name:(TGU&&(TGU.username||TGU.first_name))||'Jugador',
   clan:null,clanRole:null,lang:LG,sfx:true,music:true,frOpen:false};
-const POT=CFG.POT||{usd:100,target:10000,current:0,deadline:null};
+const POT=CFG.POT||{usd:100,raised:0,deadline:null};
 const CONS={esc:{ic:'⬡',c:'#7FE3FF',cost:120,n:{es:'ESCUDO',en:'SHIELD'}},
  ima:{ic:'◎',c:'#FFD24A',cost:90, n:{es:'IMÁN',en:'MAGNET'}},
  des:{ic:'✦',c:'#FF8AD8',cost:150,n:{es:'DESTELLO',en:'FLASH'}}};
@@ -474,8 +474,8 @@ function loadState(){
     S.skin=p.skin;S.fondo=p.fondo;S.skins=p.skins||['neon'];
     S.fondos=p.fondos||['abisal'];S.inv=p.inv||S.inv;S.netPts=p.net_pts;
     S.name=p.display_name||S.name;S.adsToday=r.adsToday||0;
-    if(r.cycle){POT.usd=r.cycle.usd;POT.target=r.cycle.target_xp;
-      POT.current=r.cycle.current_xp;POT.deadline=r.cycle.deadline}
+    if(r.cycle){POT.usd=r.cycle.usd;POT.raised=r.cycle.raised||0;
+      POT.deadline=r.cycle.deadline}
     if(r.boards){BOARDS.hab=(r.boards.hab||[]).map(function(x){return [x.name,x.pts]});
       BOARDS.red=(r.boards.red||[]).map(function(x){return [x.name,x.pts]});
       BOARDS.clan=(r.boards.clans||[]).map(function(x){return [x.name,x.members,x.week_pts]})}
@@ -629,15 +629,14 @@ const FKR=[['Dr4go',880],['Mila',740],['elCubano',610],['Vega',520],['krlos',430
 const FKC=[['Los Abisales',12,9840],['Nocturnos',9,7210],['Cuba Deep',15,6890],
  ['Void Crew',7,5120],['Larvas',11,4470],['Bioluz',6,3980],['Ánima',8,3310]];
 function drawRank(){
-  const xpNow=POT.current||S.xp;
-  const pc=Math.min(100,xpNow/POT.target*100);
+  const pc=Math.min(100,(POT.raised||0)/Math.max(1,POT.usd)*100);
   const dl=POT.deadline?new Date(POT.deadline):null;
   const pot='<div class="pot"><div class="amt">$'+POT.usd+'</div>'+
    '<div class="lb">'+(dl?L.potDate(dl.toLocaleDateString(S.lang==='es'?'es-ES':'en-US',
      {day:'numeric',month:'short'})):L.potLbl+' · '+L.potNote)+'</div>'+
    (dl?'':'<div class="bar"><i style="width:'+pc+'%"></i></div>'+
-   '<div class="pct"><span>'+Math.floor(pc)+'%</span><span>'+
-     L.potLeft(Math.max(0,POT.target-xpNow))+'</span></div>')+'</div>';
+   '<div class="pct"><span>$'+(POT.raised||0)+' / $'+POT.usd+'</span><span>'+
+     Math.floor(pc)+'%</span></div>')+'</div>';
   if(rankTab==='clan'){
     const CL=BOARDS.clan.length?BOARDS.clan:FKC;
     const rows=CL.map(function(c,i){
