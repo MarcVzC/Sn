@@ -260,7 +260,7 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  adLimit:'Sin anuncios por hoy',adFail:'El anuncio no se completó',
  adNoSdk:'Anuncios no disponibles. Abre desde Telegram',
  adLoad:'Cargando anuncio...',adNone:'No hay anuncios ahora mismo',
- adWait:function(n){return 'Espera '+n+'s antes del siguiente'},
+ adBusy:'Inténtalo otra vez en un momento',
  rank:'Ranking',tabHab:'Mejores',tabRed:'Reclutadores',tabClan:'Clanes',
  habSub:function(n){return 'Tu mejor partida del ciclo · '+n+' premiados'},
  redSub:function(n){return 'Ganas por lo que juegan tus amigos · '+n+' premiados'},
@@ -299,7 +299,7 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  adLimit:'No ads left today',adFail:'Ad not completed',
  adNoSdk:'Ads unavailable. Open from Telegram',
  adLoad:'Loading ad...',adNone:'No ads available right now',
- adWait:function(n){return 'Wait '+n+'s before the next one'},
+ adBusy:'Try again in a moment',
  rank:'Ranking',tabHab:'Top players',tabRed:'Recruiters',tabClan:'Clans',
  habSub:function(n){return 'Your best run of the cycle · top '+n+' paid'},
  redSub:function(n){return 'You earn from what your friends play · top '+n+' paid'},
@@ -404,17 +404,15 @@ function blockId(v){
 var AdCtl=null,adCool=0;
 function showAd(ok){
   if(!CFG.ADSGRAM_ENABLED||!window.Adsgram)return toast(L.adNoSdk);
-  var now=Date.now();
-  if(now<adCool)return toast(L.adWait(Math.ceil((adCool-now)/1000)));
   var id=blockId(CFG.ADSGRAM_BLOCK_REWARD);
   if(!id)return toast(L.adNoSdk);
   toast(L.adLoad);
   try{
     if(!AdCtl)AdCtl=window.Adsgram.init({blockId:id});
-    AdCtl.show().then(function(){adCool=Date.now()+20000;ok()})
+    AdCtl.show().then(function(){ok()})
       .catch(function(e){
         var d=(e&&(e.description||e.message))||'';
-        if(/too often|frequen/i.test(d)){adCool=Date.now()+30000;toast(L.adWait(30))}
+        if(/too often|frequen/i.test(d))toast(L.adBusy);
         else if(/no ad|not found|empty/i.test(d))toast(L.adNone);
         else toast(L.adFail)});
   }catch(e){toast(L.adFail)}}
@@ -430,10 +428,12 @@ var frame=$('frame');
 function sendStart(){frame.contentWindow.postMessage({type:'abisal:start',
   payload:{inv:S.inv,skin:S.skin,fondo:S.fondo,coins:0,
    sfx:S.sfx,music:S.music,lang:S.lang,name:S.name}},'*')}
-function play(){revived=false;bgOn=false;frame.classList.add('on');
-  if(gameReady)requestAnimationFrame(function(){requestAnimationFrame(sendStart)});
-  else{var n=0,t=setInterval(function(){
-    if(gameReady||n++>40){clearInterval(t);sendStart()}},120)}}
+function play(){
+  revived=false;bgOn=false;frame.classList.add('on');
+  sendStart();
+  var n=0,t=setInterval(function(){
+    n++;sendStart();
+    if(n>=6)clearInterval(t)},250)}
 addEventListener('message',function(e){
   var m=e.data||{};
   if(m.type==='abisal:ready'){gameReady=true;return}
@@ -605,7 +605,8 @@ var TASKS=[],TaskCtl=null;
 function loadTasks(){
   TASKS=[];
   if(CFG.ADSGRAM_ENABLED&&window.Adsgram){
-    var tid=blockId(CFG.ADSGRAM_BLOCK_TASKS)||blockId(CFG.ADSGRAM_BLOCK_REWARD);
+    var tid=String(CFG.ADSGRAM_BLOCK_TASKS||'').trim();
+    if(tid&&tid.indexOf('task-')!==0)tid='task-'+tid.replace(/\D/g,'');
     if(tid){try{TaskCtl=window.Adsgram.init({blockId:tid});
       TASKS=[{id:'t1',ic:'◈',r:400,n:{es:'Tarea patrocinada',en:'Sponsored task'},done:false}];
     }catch(e){TASKS=[]}}}
@@ -624,12 +625,10 @@ function drawTasks(){
   for(var j=0;j<bs.length;j++)(function(x){x.onclick=function(){
     for(var k=0;k<TASKS.length;k++)if(TASKS[k].id===x.dataset.tk){var t=TASKS[k];
       if(t.done||!TaskCtl)return toast(L.taskPending);
-      var now=Date.now();
-      if(now<adCool)return toast(L.adWait(Math.ceil((adCool-now)/1000)));
       toast(L.adLoad);
-      TaskCtl.show().then(function(){adCool=Date.now()+20000;
+      TaskCtl.show().then(function(){
         S.coins+=t.r;api('ad',{kind:'task'});toast('+'+t.r+' ◈');refresh();drawTasks();
-      }).catch(function(){adCool=Date.now()+20000;toast(L.taskPending)})}}})(bs[j])}
+      }).catch(function(){toast(L.taskPending)})}}})(bs[j])}
 
 (function(){var tb=document.querySelectorAll('#pRank .tabs button');
  for(var i=0;i<tb.length;i++)(function(b){b.onclick=function(){
@@ -744,8 +743,11 @@ function drawSet(){
   $('sName').onclick=function(){
     if(S.adsToday>=AD_DAILY)return toast(L.adLimit);
     var n=prompt(L.username,S.name);if(!n||!n.trim())return;
-    showAd(function(){S.adsToday++;S.name=n.trim().slice(0,16).replace(/[<>]/g,'');
-      api('ad',{kind:'rename'});refresh();drawSet()})};
+    showAd(function(){S.adsToday++;
+      S.name=n.trim().slice(0,16).replace(/[<>]/g,'');
+      api('ad',{kind:'rename'});
+      api('equip',{name:S.name});
+      refresh();drawSet();drawRank()})};
   $('sLang').onclick=function(){S.lang=S.lang==='es'?'en':'es';L=DICT[S.lang];LG=S.lang;
     api('equip',{lang:S.lang});applyLang();drawSet()};
   $('sSfx').onclick=function(){S.sfx=!S.sfx;pushSettings();drawSet()};

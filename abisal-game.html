@@ -98,7 +98,7 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 <button id="bSnd" style="position:fixed;left:14px;top:calc(env(safe-area-inset-top) + 96px);z-index:7;width:32px;height:32px;border-radius:11px;border:1px solid rgba(140,180,255,.25);background:rgba(8,12,24,.55);color:#EDF2FF;font:700 14px Outfit;opacity:.55">♪</button>
 <div class="hint l">◀ turbo</div><div class="hint r">dirigir ▶</div>
 <div class="tip" id="tip">Derecha: arrastra para dirigir · Izquierda: acelerar<br>El mapa da la vuelta: no hay bordes</div>
-<div class="solo on" id="solo">
+<div class="solo" id="solo">
   <div id="sKill" style="display:none;text-align:center">
     <div class="kl">Eliminado por</div><div class="who" id="sWho"></div></div>
   <div class="big"><span id="sPts">ABISAL</span><small id="sLab">toca para empezar</small></div>
@@ -287,7 +287,7 @@ function applyLang(){
 
 const MW=1750,MH=1750;
 const CFG={spd:2.9,boost:5.4,turnP:.62,start:10,step:3.4,ptsPer:1.9,
-  food:360,tox:7,bots:11,light:215,lper:2.0,amb:.10,gain:.16,smooth:.05,corpse:.34,
+  food:400,tox:7,bots:15,light:215,lper:2.0,amb:.10,gain:.16,smooth:.05,corpse:.34,
   dead:7,max:44,safe:380,lvlTime:2700,winTime:21600,GS:70};
 const NAMES=["KRAKEN","viborakiller","Ana_88","m0rt4l","luisfer","Nocturno","kenji","La_Bestia",
 "Zeta9","pipo23","Mila","tuntun","Dr4go","elCubano","Nyx","Sombra","vortex7","kiko","Lupita",
@@ -554,19 +554,24 @@ function chooseGoal(b){
     const ax=dX(w.x,b.x),ay=dY(w.y,b.y),d=Math.hypot(ax,ay);
     if(d<20||d>700)continue;
     const ratio=w.len/b.len;
-    if(ratio<0.90){
-      const ahead=Math.cos(w.ang)*ax+Math.sin(w.ang)*ay;
-      const lead=Math.min(d*.85,(d/CFG.spd)*CFG.spd*.75)*(.5+b.sk*.6);
+    if(ratio<0.94){
+      // interceptar por delante, no perseguir por detrás
+      const myV=b.boost?CFG.boost:CFG.spd;
+      let lead=d/Math.max(myV,.1)*CFG.spd*(.7+b.sk*.5);
+      lead=Math.min(lead,340);
       const cx=wrapX(w.x+Math.cos(w.ang)*lead),cy=wrapY(w.y+Math.sin(w.ang)*lead);
       const cd=Math.hypot(dX(cx,b.x),dY(cy,b.y));
-      const reach=cd/(b.boost?CFG.boost:CFG.spd);
-      const theirs=lead/CFG.spd;
-      let sc=(60+w.len*3.2)*(0.8+q.a*2.2)*420/(d+120);
-      if(reach<theirs*1.35)sc*=1.9;
-      if(ratio<.75)sc*=1.4;
-      if(ahead<0)sc*=1.25;
-      if(sc>bs){bs=sc;best={t:'hunt',gx:cx,gy:cy,ref:w}}}
-    else if(ratio>1.05&&d<340){
+      const canCut=cd/myV < lead/CFG.spd*1.25;
+      // cortarle el paso de lado: cruzarse por delante de su cabeza
+      const side=Math.sign(Math.cos(w.ang)*ay-Math.sin(w.ang)*ax)||1;
+      const bx2=wrapX(w.x+Math.cos(w.ang)*lead*.8-Math.sin(w.ang)*side*38);
+      const by2=wrapY(w.y+Math.sin(w.ang)*lead*.8+Math.cos(w.ang)*side*38);
+      let sc=(70+w.len*3.6)*(0.7+q.a*2.6)*460/(d+120);
+      if(canCut)sc*=2.2;
+      if(ratio<.7)sc*=1.5;
+      if(d<170)sc*=1.5;
+      if(sc>bs){bs=sc;best={t:'hunt',gx:canCut?bx2:cx,gy:canCut?by2:cy,ref:w}}}
+    else if(ratio>1.06&&d<380){
       if(Math.cos(w.ang)*(-ax)+Math.sin(w.ang)*(-ay)>0){
         const sc=(760-d)*(.9+q.c*1.6)*2.1*b.sk;
         if(sc>bs){bs=sc;best={t:'flee',
@@ -574,20 +579,23 @@ function chooseGoal(b){
   if(!best){
     const a=b.ang+R(-.7,.7);
     best={t:'roam',gx:wrapX(b.x+Math.cos(a)*420),gy:wrapY(b.y+Math.sin(a)*420)}}
-  b.goal=best;b.gT=best.t==='hunt'?4:(best.t==='food'?9:6)}
-const DIRS=15;
+  b.goal=best;b.gT=best.t==='hunt'?3:(best.t==='food'?7:5)}
+const DIRS=17;
 function think(b,dt){
   const q=b.per;
   if((b.gT-=dt)<=0)chooseGoal(b);
   if((b.dT-=dt)>0)return;
-  b.dT=3;
+  b.dT=2;
   let gAng=b.ang,gd=99999;
   if(b.goal&&b.goal.t==='hunt'){
     const w=b.goal.ref;
     if(!w||!w.alive||w.len>b.len*0.98){b.goal=null;b.gT=0;chooseGoal(b)}
-    else{const lead=Math.min(160,Math.hypot(dX(w.x,b.x),dY(w.y,b.y))*.6);
-      b.goal.gx=wrapX(w.x+Math.cos(w.ang)*lead);
-      b.goal.gy=wrapY(w.y+Math.sin(w.ang)*lead)}}
+    else{
+      const ax2=dX(w.x,b.x),ay2=dY(w.y,b.y),dd=Math.hypot(ax2,ay2);
+      const lead=Math.min(300,dd*.75);
+      const side=Math.sign(Math.cos(w.ang)*ay2-Math.sin(w.ang)*ax2)||1;
+      b.goal.gx=wrapX(w.x+Math.cos(w.ang)*lead-Math.sin(w.ang)*side*34);
+      b.goal.gy=wrapY(w.y+Math.sin(w.ang)*lead+Math.cos(w.ang)*side*34)}}
   if(b.goal){
     const dx=dX(b.goal.gx,b.x),dy=dY(b.goal.gy,b.y);
     gd=Math.hypot(dx,dy);
@@ -1072,7 +1080,10 @@ document.getElementById('bSnd').onclick=e=>{e.stopPropagation();toggleAudio()};
 document.getElementById('bX2').onclick=doX2;
 document.getElementById('bRev').onclick=doRevive;
 applyLang();reset();board();requestAnimationFrame(loop);
-if(embedded)send('abisal:ready',{lang:LG});
+if(embedded){send('abisal:ready',{lang:LG});
+  setTimeout(function(){send('abisal:ready',{lang:LG})},300);
+  setTimeout(function(){send('abisal:ready',{lang:LG})},900)}
+else document.getElementById('solo').classList.add('on');
 </script>
 </body>
 </html>
