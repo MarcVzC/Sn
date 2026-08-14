@@ -2,7 +2,11 @@ window.ABISAL_CFG = {
 
   API_BASE: "https://bhezxjwihnvblzstjeqj.supabase.co/functions/v1/abisal",
 
+  APP_URL:  "https://marcvzc.github.io/Sn/abisal-menu.html",
+  GAME_URL: "https://marcvzc.github.io/Sn/abisal-game.html",
+
   BOT_USER: "AbisalGameBot",
+  BOT_ID:   8850389623,
   APP_NAME: "abisal",
 
   ADSGRAM_BLOCK_REWARD: "42738",
