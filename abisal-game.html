@@ -42,8 +42,9 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 .pw button:active{transform:scale(.93)}
 .pw button.no{opacity:.2}
 .pw button.act{box-shadow:0 0 18px currentColor}
-.pw button u{position:absolute;left:0;right:0;bottom:3px;text-decoration:none;
-  font:700 8px JetBrains Mono,monospace;opacity:.9}
+.pw button u{position:absolute;left:-2px;right:-2px;bottom:-7px;text-decoration:none;
+  font:700 10px JetBrains Mono,monospace;background:#0A1020;border-radius:6px;
+  border:1px solid currentColor;padding:0 3px}
 .pw button em{position:absolute;right:-3px;top:-4px;font-style:normal;font:700 9px JetBrains Mono,monospace;
   background:#0A1020;border:1px solid currentColor;border-radius:8px;padding:1px 4px}
 .hint{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 22px);z-index:4;pointer-events:none;
@@ -286,8 +287,8 @@ function applyLang(){
 
 const MW=1750,MH=1750;
 const CFG={spd:2.9,boost:5.4,turnP:.62,start:10,step:3.4,ptsPer:1.9,
-  food:340,tox:8,bots:13,light:215,lper:2.0,amb:.10,gain:.16,smooth:.05,corpse:.34,
-  dead:7,max:44,safe:300,lvlTime:2700,winTime:21600,GS:70};
+  food:360,tox:7,bots:11,light:215,lper:2.0,amb:.10,gain:.16,smooth:.05,corpse:.34,
+  dead:7,max:44,safe:380,lvlTime:2700,winTime:21600,GS:70};
 const NAMES=["KRAKEN","viborakiller","Ana_88","m0rt4l","luisfer","Nocturno","kenji","La_Bestia",
 "Zeta9","pipo23","Mila","tuntun","Dr4go","elCubano","Nyx","Sombra","vortex7","kiko","Lupita",
 "N30N","Bicho","tavo","QuetzaL","Puma_","Ares","Cheko","Onix","Vega","krlos","Tiburon","yuli","Bran",
@@ -442,7 +443,7 @@ function occupied(px,py,rad,self){
 }
 // distancia libre en una dirección
 function clearance(b,ang,maxD){
-  const cx=Math.cos(ang),cy=Math.sin(ang),rr=10+b.len*.085,STEP=maxD/5;
+  const cx=Math.cos(ang),cy=Math.sin(ang),rr=10+b.len*.085,STEP=maxD/7;
   for(let t=STEP;t<=maxD;t+=STEP){
     const px=wrapX(b.x+cx*t),py=wrapY(b.y+cy*t);
     if(occupied(px,py,rr*1.05,b))return t-STEP*.5;
@@ -554,7 +555,7 @@ function chooseGoal(b){
     const ax=dX(w.x,b.x),ay=dY(w.y,b.y),d=Math.hypot(ax,ay);
     if(d<20||d>700)continue;
     const ratio=w.len/b.len;
-    if(ratio<1.18){
+    if(ratio<0.90){
       const ahead=Math.cos(w.ang)*ax+Math.sin(w.ang)*ay;
       const lead=Math.min(d*.85,(d/CFG.spd)*CFG.spd*.75)*(.5+b.sk*.6);
       const cx=wrapX(w.x+Math.cos(w.ang)*lead),cy=wrapY(w.y+Math.sin(w.ang)*lead);
@@ -566,16 +567,16 @@ function chooseGoal(b){
       if(ratio<.75)sc*=1.4;
       if(ahead<0)sc*=1.25;
       if(sc>bs){bs=sc;best={t:'hunt',gx:cx,gy:cy,ref:w}}}
-    else if(d<280){
+    else if(ratio>1.05&&d<340){
       if(Math.cos(w.ang)*(-ax)+Math.sin(w.ang)*(-ay)>0){
-        const sc=(700-d)*(.6+q.c*1.4)*1.6*b.sk;
+        const sc=(760-d)*(.9+q.c*1.6)*2.1*b.sk;
         if(sc>bs){bs=sc;best={t:'flee',
           gx:wrapX(b.x-ax/d*420),gy:wrapY(b.y-ay/d*420)}}}}}
   if(!best){
     const a=b.ang+R(-.7,.7);
     best={t:'roam',gx:wrapX(b.x+Math.cos(a)*420),gy:wrapY(b.y+Math.sin(a)*420)}}
   b.goal=best;b.gT=best.t==='hunt'?4:(best.t==='food'?9:6)}
-const DIRS=13;
+const DIRS=15;
 function think(b,dt){
   const q=b.per;
   if((b.gT-=dt)<=0)chooseGoal(b);
@@ -584,7 +585,7 @@ function think(b,dt){
   let gAng=b.ang,gd=99999;
   if(b.goal&&b.goal.t==='hunt'){
     const w=b.goal.ref;
-    if(!w||!w.alive||w.len>b.len*1.25){b.goal=null;b.gT=0;chooseGoal(b)}
+    if(!w||!w.alive||w.len>b.len*0.98){b.goal=null;b.gT=0;chooseGoal(b)}
     else{const lead=Math.min(160,Math.hypot(dX(w.x,b.x),dY(w.y,b.y))*.6);
       b.goal.gx=wrapX(w.x+Math.cos(w.ang)*lead);
       b.goal.gy=wrapY(w.y+Math.sin(w.ang)*lead)}}
@@ -597,19 +598,18 @@ function think(b,dt){
     else gAng=Math.atan2(dy,dx)}
   b.gd=gd;
   const rr=10+b.len*.085;
-  const need=52+rr*3.4;
+  const need=70+rr*4.2;
   const look=need+90+b.sk*70+(b.boost?70:0);
   if(b.lastOff===undefined)b.lastOff=0;
   let bestA=b.ang,bestS=-1e9,bestOff=0;
   for(let i=0;i<DIRS;i++){
-    const off=(i-(DIRS-1)/2)*(2.5/DIRS)*2;
+    const off=(i-(DIRS-1)/2)*(2.9/DIRS)*2;
     const a=b.ang+off;
     const cl=clearance(b,a,look);
     const dg=((gAng-a+Math.PI*3)%6.2832)-Math.PI;
     const align=Math.cos(dg);
     let sc=align*2.8;
-    const aggro=(b.goal&&b.goal.t==='hunt')?.55:1;
-    if(cl<need)sc-=(1-cl/need)*9*aggro;
+    if(cl<need)sc-=(1-cl/need)*11;
     else sc+=Math.min(1,(cl-need)/160)*.9;
     sc-=Math.abs(off)*.18;
     sc+=Math.max(0,.35-Math.abs(off-b.lastOff)*.6);
@@ -619,7 +619,7 @@ function think(b,dt){
   const g=b.goal;
   const wantB=b.tlen>CFG.start+9&&!!g&&
     ((g.t==='hunt'&&gd<300)||(g.t==='flee'&&gd<300)||(g.t==='food'&&g.big&&gd<260));
-  if(wantB&&!b.boost&&Math.random()<q.b*.22)b.boost=1;
+  if(wantB&&!b.boost&&Math.random()<q.b*.14)b.boost=1;
   else if(b.boost&&(!wantB||Math.random()<.04))b.boost=0;
 }
 function kill(w,by){
@@ -657,7 +657,6 @@ function step(dt){
   if(flash>0)flash-=dt;
   if(p.ima>0){p.ima-=dt;if(p.ima<0){p.ima=0;pwHud()}}
   if(p.esc>0){p.esc-=dt;if(p.esc<0){p.esc=0;pwHud()}}
-  if(tk%12===0&&(p.ima>0||p.esc>0))pwHud();
   gridBuild();
   for(const w of worms){
     if(!w.alive)continue;
@@ -753,81 +752,75 @@ function drawWorm(w){
   const r=8+w.len*.085;
   x.globalAlpha=w.new>0?.45+Math.sin(tk*.3)*.25:1;
   x.lineCap='round';x.lineJoin='round';x.setLineDash([]);
-  x.beginPath();pathScreen(x,pa,1);
-  if(Q>=1){x.strokeStyle=`hsla(${w.hue},100%,58%,.13)`;x.lineWidth=r*3.2;x.stroke()}
-  x.strokeStyle=`hsla(${w.hue},100%,62%,.3)`;x.lineWidth=r*2.0;x.stroke();
-  if(w.p&&mySkin){const c=mySkin(6,tk);
-    x.strokeStyle='hsla('+c[0]+','+c[1]+'%,'+Math.min(92,c[2]+(w.boost?14:0))+'%,.96)'}
-  else x.strokeStyle=`hsla(${w.hue},100%,${w.boost?84:68}%,.96)`;
-  x.lineWidth=r*1.25;x.stroke();
-  if(Q===0&&!w.p){x.globalAlpha=1;const gh=r*4.9;
-    x.drawImage(gi(w.hue),sx(w.x)-gh/2,sy(w.y)-gh/2,gh,gh);return}
-  const vis=i=>{const px=sx(pa[i].x),py=sy(pa[i].y);
-    return(px>-50&&px<W+50&&py>-50&&py<H+50)?[px,py]:null};
-  const nrm=i=>Math.atan2(dY(pa[i+1].y,pa[i].y),dX(pa[i+1].x,pa[i].x))+1.5708;
-  switch(w.pat){
-   case 0: x.strokeStyle=`hsla(${w.hue},100%,97%,.62)`;x.lineWidth=r*.36;x.stroke();break;
-   case 1: x.setLineDash([r*1.15,r*1.05]);
-     x.strokeStyle=`hsla(${(w.hue+180)%360},100%,82%,.55)`;x.lineWidth=r*.95;x.stroke();
-     x.setLineDash([]);break;
-   case 2: x.fillStyle=`hsla(${(w.hue+40)%360},100%,90%,.6)`;
-     for(let i=3;i<pa.length-1;i+=5){const v=vis(i);if(!v)continue;
-       const a=nrm(i),d=r*.46;
-       x.beginPath();x.arc(v[0]+Math.cos(a)*d,v[1]+Math.sin(a)*d,r*.2,0,6.29);x.fill();
-       x.beginPath();x.arc(v[0]-Math.cos(a)*d,v[1]-Math.sin(a)*d,r*.2,0,6.29);x.fill()}break;
-   case 3: x.strokeStyle=`hsla(${(w.hue+150)%360},100%,88%,.6)`;x.lineWidth=Math.max(1,r*.22);
-     for(let i=4;i<pa.length-1;i+=7){const v=vis(i);if(!v)continue;
-       x.beginPath();x.arc(v[0],v[1],r*.72,0,6.29);x.stroke()}break;
-   case 4: x.strokeStyle=`hsla(${(w.hue+300)%360},100%,86%,.5)`;x.lineWidth=Math.max(1,r*.16);
-     x.beginPath();
-     for(let i=3;i<pa.length-1;i+=4){const v=vis(i);if(!v)continue;
-       const a=nrm(i),d=r*.95;
-       x.moveTo(v[0],v[1]);x.lineTo(v[0]+Math.cos(a)*d,v[1]+Math.sin(a)*d);
-       x.moveTo(v[0],v[1]);x.lineTo(v[0]-Math.cos(a)*d,v[1]-Math.sin(a)*d)}
-     x.stroke();break;
-   case 5: { // placas segmentadas
-     x.strokeStyle=`hsla(${(w.hue+20)%360},100%,92%,.5)`;x.lineWidth=Math.max(1,r*.18);
-     for(let i=3;i<pa.length-1;i+=5){const v=vis(i);if(!v)continue;
-       const a=nrm(i),d=r*.62;
-       x.beginPath();x.moveTo(v[0]+Math.cos(a)*d,v[1]+Math.sin(a)*d);
-       x.lineTo(v[0]-Math.cos(a)*d,v[1]-Math.sin(a)*d);x.stroke()}break}
-   case 6: { // cresta zigzag
-     x.strokeStyle=`hsla(${(w.hue+60)%360},100%,90%,.55)`;x.lineWidth=Math.max(1,r*.2);
-     x.beginPath();let st=false;
-     for(let i=3;i<pa.length-1;i+=3){const v=vis(i);if(!v){st=false;continue}
-       const a=nrm(i),d=r*.8*((i>>1)%2?1:-1);
-       const px=v[0]+Math.cos(a)*d,py=v[1]+Math.sin(a)*d;
-       st?x.lineTo(px,py):(x.moveTo(px,py),st=true)}
-     x.stroke();break}
-   default: { // doble franja
-     x.strokeStyle=`hsla(${(w.hue+330)%360},100%,92%,.5)`;x.lineWidth=Math.max(1,r*.15);
-     for(const sgn of[-1,1]){x.beginPath();let st=false;
-       for(let i=1;i<pa.length-1;i+=2){const v=vis(i);if(!v){st=false;continue}
-         const a=nrm(i),d=r*.42*sgn;
-         const px=v[0]+Math.cos(a)*d,py=v[1]+Math.sin(a)*d;
-         st?x.lineTo(px,py):(x.moveTo(px,py),st=true)}
-       x.stroke()}break}
+  const useSkin=w.p&&mySkin;
+  if(useSkin){
+    const T2=tk*.5,N=8,step=Math.max(1,Math.floor(pa.length/N));
+    for(let pass=0;pass<3;pass++){
+      const lw=r*[3.0,1.95,1.25][pass],al=[.13,.30,.96][pass];
+      for(let k=0;k<pa.length-1;k+=step){
+        const c=mySkin(k/step*2.6,T2);
+        x.strokeStyle='hsla('+c[0]+','+c[1]+'%,'+
+          Math.min(94,c[2]+(w.boost&&pass===2?14:0))+'%,'+al+')';
+        x.lineWidth=lw;x.beginPath();
+        let prev=null,st=false;
+        for(let i=k;i<=Math.min(pa.length-1,k+step);i++){
+          const px=W/2+dX(pa[i].x,cam.x),py=H/2+dY(pa[i].y,cam.y);
+          if(prev&&(Math.abs(px-prev[0])>W*.6||Math.abs(py-prev[1])>H*.6))st=false;
+          if(!st){x.moveTo(px,py);st=true}else x.lineTo(px,py);
+          prev=[px,py]}
+        x.stroke()}}
+  }else{
+    x.beginPath();pathScreen(x,pa,1);
+    x.strokeStyle=`hsla(${w.hue},100%,58%,.13)`;x.lineWidth=r*3.2;x.stroke();
+    x.strokeStyle=`hsla(${w.hue},100%,62%,.3)`;x.lineWidth=r*2.0;x.stroke();
+    x.strokeStyle=`hsla(${w.hue},100%,${w.boost?84:68}%,.96)`;x.lineWidth=r*1.25;x.stroke();
+  }
+  if(!useSkin){
+    x.beginPath();pathScreen(x,pa,1);
+    const vis=i=>{const px=sx(pa[i].x),py=sy(pa[i].y);
+      return(px>-50&&px<W+50&&py>-50&&py<H+50)?[px,py]:null};
+    const nrm=i=>Math.atan2(dY(pa[i+1].y,pa[i].y),dX(pa[i+1].x,pa[i].x))+1.5708;
+    switch(w.pat){
+     case 0: x.strokeStyle=`hsla(${w.hue},100%,97%,.62)`;x.lineWidth=r*.36;x.stroke();break;
+     case 1: x.setLineDash([r*1.15,r*1.05]);
+       x.strokeStyle=`hsla(${(w.hue+180)%360},100%,82%,.55)`;x.lineWidth=r*.95;x.stroke();
+       x.setLineDash([]);break;
+     case 2: x.fillStyle=`hsla(${(w.hue+40)%360},100%,90%,.6)`;
+       for(let i=3;i<pa.length-1;i+=5){const v=vis(i);if(!v)continue;
+         const a=nrm(i),d=r*.46;
+         x.beginPath();x.arc(v[0]+Math.cos(a)*d,v[1]+Math.sin(a)*d,r*.2,0,6.29);x.fill();
+         x.beginPath();x.arc(v[0]-Math.cos(a)*d,v[1]-Math.sin(a)*d,r*.2,0,6.29);x.fill()}break;
+     case 3: x.strokeStyle=`hsla(${(w.hue+150)%360},100%,88%,.6)`;x.lineWidth=Math.max(1,r*.22);
+       for(let i=4;i<pa.length-1;i+=7){const v=vis(i);if(!v)continue;
+         x.beginPath();x.arc(v[0],v[1],r*.72,0,6.29);x.stroke()}break;
+     default: x.strokeStyle=`hsla(${(w.hue+300)%360},100%,86%,.5)`;x.lineWidth=Math.max(1,r*.16);
+       x.beginPath();
+       for(let i=3;i<pa.length-1;i+=4){const v=vis(i);if(!v)continue;
+         const a=nrm(i),d=r*.95;
+         x.moveTo(v[0],v[1]);x.lineTo(v[0]+Math.cos(a)*d,v[1]+Math.sin(a)*d);
+         x.moveTo(v[0],v[1]);x.lineTo(v[0]-Math.cos(a)*d,v[1]-Math.sin(a)*d)}
+       x.stroke()}
   }
   const hx=sx(w.x),hy=sy(w.y);
-  if(w.fin===1){x.strokeStyle=`hsla(${w.hue},100%,90%,.5)`;x.lineWidth=Math.max(1.2,r*.2);
+  const hc=useSkin?mySkin(0,tk*.5):null;
+  const hueHead=hc?((hc[0]%360)+360)%360:w.hue;
+  if(w.fin===1){x.strokeStyle='hsla('+hueHead+',100%,90%,.5)';x.lineWidth=Math.max(1.2,r*.2);
     for(const s of[-1,1]){const a=w.ang+s*1.15;
       x.beginPath();x.moveTo(hx,hy);x.lineTo(hx+Math.cos(a)*r*1.7,hy+Math.sin(a)*r*1.7);x.stroke()}}
-  else if(w.fin===2){x.strokeStyle=`hsla(${w.hue},100%,94%,.55)`;x.lineWidth=Math.max(1,r*.15);
+  else if(w.fin===2){x.strokeStyle='hsla('+hueHead+',100%,94%,.55)';x.lineWidth=Math.max(1,r*.15);
     for(const s of[-1,1]){const a=w.ang+s*.55;
       x.beginPath();x.moveTo(hx+Math.cos(a)*r*.7,hy+Math.sin(a)*r*.7);
       x.lineTo(hx+Math.cos(a)*r*2.3,hy+Math.sin(a)*r*2.3);x.stroke()}}
-  else if(w.fin===3){ // antenas
-    x.strokeStyle=`hsla(${w.hue},100%,96%,.6)`;x.lineWidth=Math.max(1,r*.12);
+  else if(w.fin===3){x.strokeStyle='hsla('+hueHead+',100%,96%,.6)';x.lineWidth=Math.max(1,r*.12);
     for(const s of[-1,1]){const a=w.ang+s*.38;
       const ex=hx+Math.cos(a)*r*2.6,ey=hy+Math.sin(a)*r*2.6;
       x.beginPath();x.moveTo(hx,hy);x.lineTo(ex,ey);x.stroke();
-      x.fillStyle=`hsla(${w.hue},100%,92%,.8)`;
+      x.fillStyle='hsla('+hueHead+',100%,92%,.8)';
       x.beginPath();x.arc(ex,ey,r*.2,0,6.29);x.fill()}}
-  const gs=r*4.9;x.drawImage(gi(w.hue),hx-gs/2,hy-gs/2,gs,gs);
+  const gs=r*4.9;x.drawImage(gi(hueHead),hx-gs/2,hy-gs/2,gs,gs);
   if(w.esc>0){x.strokeStyle=`rgba(127,227,255,${.35+Math.sin(tk*.14)*.25})`;
     x.lineWidth=2.4;x.beginPath();x.arc(hx,hy,r*2.3,0,6.29);x.stroke()}
   x.globalAlpha=1}
-
 function render(){
   const p=P();
   x.save();
@@ -878,7 +871,9 @@ function render(){
     if(!w.alive)continue;
     const px=sx(w.x),py=sy(w.y),rad=(CFG.light+w.len*CFG.lper)*1.15;
     if(px<-rad||px>W+rad||py<-rad||py>H+rad)continue;
-    x.drawImage(ti(w.hue),px-rad,py-rad,rad*2,rad*2)}
+    let hh=w.hue;
+    if(w.p&&mySkin){const c=mySkin(0,tk*.5);hh=((c[0]%360)+360)%360}
+    x.drawImage(ti(hh),px-rad,py-rad,rad*2,rad*2)}
   for(const f of food){
     const px=sx(f.x),py=sy(f.y);
     if(px<-50||px>W+50||py<-50||py>H+50)continue;
