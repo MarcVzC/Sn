@@ -1,6 +1,6 @@
 window.ABISAL_CFG = {
 
-  API_BASE: "",
+  API_BASE: "https://bhezxjwihnvblzstjeqj.supabase.co/functions/v1/abisal",
 
   BOT_USER: "AbisalGameBot",
   APP_NAME: "abisal",
