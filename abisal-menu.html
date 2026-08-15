@@ -284,15 +284,19 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  adBusy:'Inténtalo otra vez en un momento',
  adRestart:'Sesión demasiado larga. Cierra y vuelve a abrir',
  taskClaim:'COBRAR',taskWait:'Aún no ha pasado el tiempo',
- tPlay:'Juega una partida',tLen:'Alcanza largo 80',tKill:'Consigue 3 bajas en una partida',
- tTime:'Sobrevive 90 segundos',tDaily:'Entra hoy en el juego',
+ tPlay:'Juega 3 partidas hoy',tLen:'Alcanza largo 120 en una partida',
+ tKill:'Consigue 5 bajas en una partida',tTime:'Sobrevive 120 segundos',
+ tDaily:'Entra hoy en el juego',taskLocked:'Aún no has cumplido el objetivo',
  rank:'Ranking',tabHab:'Mejores',tabRed:'Reclutadores',tabClan:'Clanes',
  habSub:function(n){return 'Puntos acumulados en el ciclo · '+n+' premiados'},
  redSub:function(n){return 'Ganas por lo que juegan tus amigos · '+n+' premiados'},
- clanSub:'Ranking semanal por puntos de sus miembros activos',
+ clanSub:'Los puntos de cada miembro suman al clan. Máximo 30 por clan.',
  members:'miembros',noClan:'No estás en un clan',yourClan:'Tu clan',
  clanCost:function(n){return 'Crear cuesta ◈ '+n},create:'CREAR',leave:'SALIR',
- clanName:'Nombre del clan',clanMade:'Clan creado',
+ clanName:'Nombre del clan',clanMade:'Clan creado',join:'UNIRME',
+ clanPts:'puntos',clanTop:'Mejores clanes',clanNone:'Aún no hay clanes',
+ clanTaken:'Ese nombre ya existe',clanFull:'El clan está lleno',
+ clanJoined:'Te has unido',clanLeft:'Has salido del clan',
  potLbl:'recaudado',potNote:'se reparte al completarse',
  potDate:function(d){return 'se entrega el '+d},you:'Tú',
  friends:'Amigos',frSub:'Ganas puntos según lo que jueguen ellos, no según cuántos traigas',
@@ -327,15 +331,19 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  adBusy:'Try again in a moment',
  adRestart:'Session too long. Close and reopen',
  taskClaim:'CLAIM',taskWait:'Not enough time has passed',
- tPlay:'Play one run',tLen:'Reach length 80',tKill:'Get 3 kills in one run',
- tTime:'Survive 90 seconds',tDaily:'Open the game today',
+ tPlay:'Play 3 runs today',tLen:'Reach length 120 in one run',
+ tKill:'Get 5 kills in one run',tTime:'Survive 120 seconds',
+ tDaily:'Open the game today',taskLocked:'Objective not reached yet',
  rank:'Ranking',tabHab:'Top players',tabRed:'Recruiters',tabClan:'Clans',
  habSub:function(n){return 'Points earned this cycle · top '+n+' paid'},
  redSub:function(n){return 'You earn from what your friends play · top '+n+' paid'},
- clanSub:'Weekly ranking by active members points',
+ clanSub:'Every member points add to the clan. Max 30 per clan.',
  members:'members',noClan:'You are not in a clan',yourClan:'Your clan',
  clanCost:function(n){return 'Creating costs ◈ '+n},create:'CREATE',leave:'LEAVE',
- clanName:'Clan name',clanMade:'Clan created',
+ clanName:'Clan name',clanMade:'Clan created',join:'JOIN',
+ clanPts:'points',clanTop:'Top clans',clanNone:'No clans yet',
+ clanTaken:'That name is taken',clanFull:'Clan is full',
+ clanJoined:'You joined',clanLeft:'You left the clan',
  potLbl:'raised',potNote:'paid out when complete',
  potDate:function(d){return 'paid on '+d},you:'You',
  friends:'Friends',frSub:'You earn from what they play, not from how many you bring',
@@ -360,7 +368,7 @@ var S={coins:0,stars:0,best:0,bestLen:0,bestTime:0,totalTime:0,totalPts:0,streak
  kills:0,wins:0,netPts:0,friends:[],inv:{esc:1,ima:1,des:1},skin:'neon',skins:['neon'],
  fondo:'abisal',fondos:['abisal'],nemesis:null,nemCnt:0,adsToday:0,clan:null,
  name:(TGU&&(TGU.username||TGU.first_name))||'Jugador',lang:LG,sfx:true,music:true,frOpen:false,
- tasks:{},adsDay:'',pendRuns:[],place:0,cyclePts:0};
+ tasks:{},mp:null,adsDay:'',pendRuns:[],place:0,cyclePts:0};
 
 var CONS={esc:{ic:'⬡',c:'#7FE3FF',cost:120,n:{es:'ESCUDO',en:'SHIELD'}},
  ima:{ic:'◎',c:'#FFD24A',cost:90,n:{es:'IMÁN',en:'MAGNET'}},
@@ -413,7 +421,7 @@ var revived=false,shopTab='cons',rankTab='hab',SESSION=null,gameReady=false;
 var LKEY='abisal_s_v1';
 var LFIELDS=['coins','stars','best','bestLen','bestTime','totalTime','totalPts','streak',
 'runs','kills','wins','netPts','inv','skin','skins','fondo','fondos','adsToday','tasks',
-'name','clan','lang','sfx','music','adsDay','pendRuns','cyclePts','place'];
+'name','clan','clanId','lang','sfx','music','adsDay','pendRuns','cyclePts','place','mp'];
 function saveLocal(){
   try{var o={};for(var i=0;i<LFIELDS.length;i++)o[LFIELDS[i]]=S[LFIELDS[i]];
     o.t=Date.now();localStorage.setItem(LKEY,JSON.stringify(o))}catch(e){}}
@@ -532,6 +540,7 @@ addEventListener('message',function(e){
   $('oBX2').style.display=d.canX2?'block':'none';
   $('oBRev').style.display=(d.canRevive&&!revived)?'block':'none';
   $('over').classList.add('on');refresh();
+  missionProgress(d);
   var run={pts:d.pts||0,len:d.len||0,lvl:d.lvl||1,secs:d.time||0,
     kills:d.kills||0,inv:S.inv};
   if(SESSION){run.session=SESSION;SESSION=null;
@@ -715,23 +724,34 @@ function drawShop(){
 }
 
 var TASK_REWARD=400,TASK_WAIT=10000;
+// misiones: se cumplen jugando. El boton COBRAR solo aparece al alcanzar la meta.
 var LTASKS=[
- {id:'play1', r:150,k:'tPlay'},
- {id:'len80', r:250,k:'tLen'},
- {id:'kill3', r:300,k:'tKill'},
- {id:'time90',r:250,k:'tTime'},
- {id:'daily', r:200,k:'tDaily'}];
+ {id:'play3', r:150,k:'tPlay', g:3,  fld:'runs'},
+ {id:'len120',r:250,k:'tLen',  g:120,fld:'len'},
+ {id:'kill5', r:300,k:'tKill', g:5,  fld:'kills'},
+ {id:'time120',r:250,k:'tTime',g:120,fld:'time'},
+ {id:'daily', r:200,k:'tDaily',g:1,  fld:'open'}];
 function today(){return new Date().toISOString().slice(0,10)}
+function mp(){
+  if(!S.mp||S.mp.day!==today())S.mp={day:today(),runs:0,len:0,kills:0,time:0,open:1};
+  return S.mp}
 function taskState(id){
   if(!S.tasks)S.tasks={};
   var t=S.tasks[id];
-  if(!t||t.day!==today()){t={day:today(),st:0,at:0};S.tasks[id]=t}
+  if(!t||t.day!==today()){t={day:today(),st:0};S.tasks[id]=t}
   return t}
+// se llama al terminar cada partida
+function missionProgress(d){
+  var p=mp();
+  p.runs+=1;
+  p.len=Math.max(p.len,d.len||0);
+  p.kills=Math.max(p.kills,d.kills||0);
+  p.time=Math.max(p.time,d.time||0);
+  saveLocal()}
 function drawTasks(){
   $('hTasks').textContent=L.tasks;$('subTasks').textContent=L.taskSub;
-  var box=$('taskList'),tid=taskId(),html='',i;
+  var box=$('taskList'),tid=taskId(),html='',i,p=mp();
   var ready=window.customElements&&customElements.get&&customElements.get('adsgram-task');
-  // la patrocinada va primero, mezclada con las demas
   if(CFG.ADSGRAM_ENABLED&&tid&&ready)
     html+='<adsgram-task class="agtask" data-block-id="'+tid+'">'+
       '<p slot="reward" class="agr">+'+TASK_REWARD+' \u25C8</p>'+
@@ -740,12 +760,10 @@ function drawTasks(){
       '<div slot="done" class="agb agd">'+L.taskDone+'</div>'+
       '</adsgram-task>';
   for(i=0;i<LTASKS.length;i++){
-    var t=LTASKS[i],st=taskState(t.id),lab,cls='';
+    var t=LTASKS[i],st=taskState(t.id),cur=p[t.fld]||0,lab,cls='';
     if(st.st===2){lab=L.taskDone;cls=' done'}
-    else if(st.st===1){
-      var left=Math.ceil((TASK_WAIT-(Date.now()-st.at))/1000);
-      if(left>0){lab=left+'s';cls=' wait'}else{lab=L.taskClaim;cls=' cl'}}
-    else lab=L.taskGo;
+    else if(cur>=t.g){lab=L.taskClaim;cls=' cl'}
+    else{lab=Math.min(cur,t.g)+'/'+t.g;cls=' wait'}
     html+='<div class="row"><div class="tk">\u25C8</div>'+
       '<div class="tx"><b>'+L[t.k]+'</b><i>+'+t.r+' \u25C8</i></div>'+
       '<button class="go'+cls+'" data-lt="'+t.id+'">'+lab+'</button></div>'}
@@ -755,7 +773,6 @@ function drawTasks(){
     var agAt=0;
     el.addEventListener('click',function(){if(!agAt)agAt=Date.now()},true);
     el.addEventListener('reward',function(){
-      // solo se acredita si de verdad paso el tiempo minimo desde que se abrio
       if(!agAt||Date.now()-agAt<TASK_WAIT){agAt=0;return toast(L.taskWait)}
       agAt=0;
       S.coins+=TASK_REWARD;saveLocal();
@@ -766,23 +783,13 @@ function drawTasks(){
     el.addEventListener('onTooLongSession',function(){toast(L.adBusy)})}
   var bs=box.querySelectorAll('[data-lt]');
   for(var j=0;j<bs.length;j++)(function(x){x.onclick=function(){
-    var id=x.dataset.lt,st=taskState(id),def=null;
+    var id=x.dataset.lt,st=taskState(id),def=null,pp=mp();
     for(var k=0;k<LTASKS.length;k++)if(LTASKS[k].id===id)def=LTASKS[k];
     if(!def||st.st===2)return;
-    if(st.st===0){                        // IR: arranca el margen de 10 s
-      st.st=1;st.at=Date.now();saveLocal();drawTasks();
-      if(tkTimer)clearInterval(tkTimer);
-      tkTimer=setInterval(function(){
-        if($('pTasks').classList.contains('on'))drawTasks();
-        else{clearInterval(tkTimer);tkTimer=0}},1000);
-      setTimeout(function(){if(tkTimer){clearInterval(tkTimer);tkTimer=0}
-        drawTasks()},TASK_WAIT+200);
-      return}
-    if(Date.now()-st.at<TASK_WAIT)return toast(L.taskWait);
-    st.st=2;S.coins+=def.r;saveLocal();     // COBRAR
+    if((pp[def.fld]||0)<def.g)return toast(L.taskLocked);
+    st.st=2;S.coins+=def.r;saveLocal();
     api('ad',{kind:'task',item:id}).then(function(r){applyServer(r)});
     toast('+'+def.r+' \u25C8');refresh();drawTasks()}})(bs[j])}
-var tkTimer=0;
 function loadTasks(){
   if(window.customElements&&customElements.whenDefined){
     customElements.whenDefined('adsgram-task').then(function(){drawTasks()})
@@ -806,23 +813,54 @@ function drawRank(){
     Math.floor(pc)+'%</span></div>')+'</div>';
   var i,h='';
   if(rankTab==='clan'){
-    var CL=BOARDS.clan.length?BOARDS.clan:FKC;
-    for(i=0;i<CL.length;i++)
-      h+='<div class="row"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
-      '<div class="tx"><b>'+CL[i][0]+'</b><i>'+CL[i][1]+' '+L.members+'</i></div>'+
-      '<div class="sc">'+CL[i][2]+'</div></div>';
-    $('rankBody').innerHTML='<div class="psub">'+L.clanSub+'</div>'+
-      (S.clan?'<div class="row me"><div class="tx"><b>'+S.clan+'</b><i>'+L.yourClan+'</i></div>'+
-        '<button class="go" id="clanLeave">'+L.leave+'</button></div>'
-       :'<div class="row"><div class="tx"><b>'+L.noClan+'</b><i>'+L.clanCost(PR.clanCreate)+'</i></div>'+
-        '<button class="go" id="clanNew">'+L.create+'</button></div>')+
-      '<div class="rows" style="margin-top:10px">'+h+'</div>';
+    var CL=BOARDS.clan.length?BOARDS.clan:[];
+    var mine=S.myClan;
+    var head='';
+    if(mine){
+      var mem='';
+      for(i=0;i<(mine.members||[]).length;i++)
+        mem+='<div class="row"><div class="rk">'+(i+1)+'</div>'+
+          '<div class="nm">'+mine.members[i].n+'</div>'+
+          '<div class="sc">'+mine.members[i].pts+'</div></div>';
+      head='<div class="pot" style="background:linear-gradient(135deg,rgba(198,255,74,.12),'+
+        'rgba(91,233,255,.09));border-color:rgba(198,255,74,.3)">'+
+        '<div class="amt" style="color:var(--lime);font-size:22px">'+mine.name+'</div>'+
+        '<div class="lb">'+(mine.members||[]).length+' '+L.members+
+        ' · '+(mine.week_pts||0)+' '+L.clanPts+'</div></div>'+
+        '<div class="rows" style="margin-bottom:12px">'+mem+'</div>'+
+        '<button class="cta gh" id="clanLeave">'+L.leave+'</button>';
+    }else{
+      head='<div class="row"><div class="tx"><b>'+L.noClan+'</b><i>'+
+        L.clanCost(PR.clanCreate)+'</i></div>'+
+        '<button class="go" id="clanNew">'+L.create+'</button></div>';
+    }
+    for(i=0;i<CL.length;i++){
+      var mn=mine&&mine.name===CL[i][0];
+      h+='<div class="row'+(mn?' me':'')+'"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
+      '<div class="tx"><b>'+CL[i][0]+'</b><i>'+CL[i][1]+'/30 '+L.members+'</i></div>'+
+      '<div class="sc">'+CL[i][2]+'</div>'+
+      (!mine&&CL[i][3]&&CL[i][1]<30?'<button class="go" data-cj="'+CL[i][3]+'">'+
+        L.join+'</button>':'')+'</div>'}
+    $('rankBody').innerHTML='<div class="psub">'+L.clanSub+'</div>'+head+
+      '<div class="psub" style="margin:14px 0 8px">'+L.clanTop+'</div>'+
+      '<div class="rows">'+(h||'<div class="row"><div class="nm" style="color:var(--mute)">'+
+      L.clanNone+'</div></div>')+'</div>';
     if($('clanNew'))$('clanNew').onclick=function(){
       if(S.coins<PR.clanCreate)return toast(L.noCoins);
       var n=prompt(L.clanName,'');if(!n||!n.trim())return;
-      S.coins-=PR.clanCreate;S.clan=n.trim().slice(0,18);
-      api('buy',{item:'clan',name:S.clan});toast(L.clanMade);refresh();drawRank()};
-    if($('clanLeave'))$('clanLeave').onclick=function(){S.clan=null;drawRank()};
+      var nm2=n.trim().slice(0,18);
+      api('buy',{item:'clan',name:nm2}).then(function(r){
+        if(!r||r.error)return toast(r&&r.error==='clan existe'?L.clanTaken:L.saveFail);
+        applyServer(r);S.clan=nm2;saveLocal();toast(L.clanMade);loadState()})};
+    if($('clanLeave'))$('clanLeave').onclick=function(){
+      api('equip',{clanLeave:1}).then(function(r){
+        if(!r||r.error)return toast(L.saveFail);
+        S.myClan=null;S.clan=null;saveLocal();toast(L.clanLeft);loadState()})};
+    var cj=$('rankBody').querySelectorAll('[data-cj]');
+    for(var z=0;z<cj.length;z++)(function(x){x.onclick=function(){
+      api('equip',{clanJoin:x.dataset.cj}).then(function(r){
+        if(!r||r.error)return toast(r&&r.error==='clan lleno'?L.clanFull:L.saveFail);
+        toast(L.clanJoined);loadState()})}})(cj[z]);
     return}
   var red=rankTab==='red';
   var list=red?(BOARDS.red.length?BOARDS.red:FKR):(BOARDS.hab.length?BOARDS.hab:FK);
@@ -964,7 +1002,9 @@ function loadState(){
     if(r.boards){
       BOARDS.hab=(r.boards.hab||[]).map(function(x){return [x.name,x.pts]});
       BOARDS.red=(r.boards.red||[]).map(function(x){return [x.name,x.pts]});
-      BOARDS.clan=(r.boards.clans||[]).map(function(x){return [x.name,x.members,x.week_pts]})}
+      BOARDS.clan=(r.boards.clans||[]).map(function(x){return [x.name,x.members,x.week_pts,x.id]})}
+    S.myClan=r.myClan||null;
+    S.clan=S.myClan?S.myClan.name:null;
     saveLocal();flushPend();
     refresh();drawShop();drawRank();drawProfile();drawFriends();drawTasks()})}
 
