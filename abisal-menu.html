@@ -113,6 +113,17 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
   font:700 13px Chakra Petch;letter-spacing:.13em;color:#12062A;
   background:linear-gradient(96deg,var(--lime),var(--cyan))}
 .cta.gh{background:rgba(255,255,255,.07);color:var(--ink);border:1px solid var(--line);margin-top:8px}
+.agtask{--adsgram-task-font-size:14px;--adsgram-task-icon-size:38px;
+  --adsgram-task-icon-title-gap:11px;--adsgram-task-button-width:64px;
+  --adsgram-task-icon-border-radius:10px;
+  display:block;width:100%;padding:10px 12px;border-radius:13px;
+  background:rgba(255,255,255,.045);border:1px solid var(--line);
+  font-family:Outfit,system-ui,sans-serif;color:var(--ink)}
+.agr{margin:4px 0 0;font:600 11px Outfit;color:var(--gold)}
+.agb{margin-left:8px;padding:7px 12px;border-radius:10px;font:700 9px Chakra Petch;
+  background:linear-gradient(96deg,var(--gold),#FF7A4D);color:#20120A;text-align:center}
+.agc{margin-left:0;background:linear-gradient(96deg,var(--lime),var(--cyan));color:#0A1220}
+.agd{margin-left:0;background:rgba(198,255,74,.18);color:var(--lime)}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + var(--nav) + 22px);
   transform:translateX(-50%) translateY(14px);z-index:70;padding:11px 18px;border-radius:13px;
   background:rgba(14,20,44,.96);border:1px solid var(--line);font:600 12px Outfit;
@@ -276,7 +287,7 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  invite:'INVITAR A UN CHAT',copy:'COPIAR MI ENLACE',copied:'Enlace copiado',
  shareTxt:'Desciende conmigo al abismo 🪱',
  tasks:'Tareas',taskSub:'Completa y gana monedas',taskDone:'HECHO',taskGo:'IR',
- taskEmpty:'No hay tareas disponibles ahora',taskPending:'No se completó. Inténtalo de nuevo',
+ taskClaim:'COBRAR',taskEmpty:'No hay tareas disponibles ahora',taskPending:'No se completó. Inténtalo de nuevo',
  settings:'Ajustes',username:'Nombre de usuario',language:'Idioma',sound:'Efectos de sonido',
  music:'Música',change:'CAMBIAR',
  killedBy:'Eliminado por',survived:'Aguantaste los 6 minutos',survivor:'¡SUPERVIVIENTE!',
@@ -315,7 +326,7 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  invite:'INVITE TO A CHAT',copy:'COPY MY LINK',copied:'Link copied',
  shareTxt:'Descend into the abyss with me 🪱',
  tasks:'Tasks',taskSub:'Complete them and earn coins',taskDone:'DONE',taskGo:'GO',
- taskEmpty:'No tasks available right now',taskPending:'Not completed. Try again',
+ taskClaim:'CLAIM',taskEmpty:'No tasks available right now',taskPending:'Not completed. Try again',
  settings:'Settings',username:'Username',language:'Language',sound:'Sound effects',
  music:'Music',change:'CHANGE',
  killedBy:'Killed by',survived:'You lasted 6 minutes',survivor:'SURVIVOR!',
@@ -398,27 +409,34 @@ function api(path,body){
 
 function rewardId(){
   var v=String(CFG.ADSGRAM_BLOCK_REWARD||'').trim();
-  if(/^int-\d+$/.test(v))return v;
   var m=v.match(/(\d+)/);
   return m?m[1]:''}
 function taskId(){
   var v=String(CFG.ADSGRAM_BLOCK_TASKS||'').trim();
-  if(v.indexOf('task-')===0)return v;
   var m=v.match(/(\d+)/);
   return m?('task-'+m[1]):''}
 
-var AdCtl=null,TaskCtl=null;
+var AdCtl=null;
 function showAd(ok){
   if(!CFG.ADSGRAM_ENABLED||!window.Adsgram)return toast(L.adNoSdk);
   var id=rewardId();
   if(!id)return toast(L.adNoSdk);
-  toast(L.adLoad);
   try{
-    if(!AdCtl)AdCtl=window.Adsgram.init({blockId:id});
-    AdCtl.show().then(function(){ok()}).catch(function(e){
-      var d=(e&&(e.description||e.message))||'';
-      if(/too often|frequen/i.test(d))toast(L.adBusy);
-      else if(/no ad|not found|empty/i.test(d))toast(L.adNone);
+    if(!AdCtl){
+      AdCtl=window.Adsgram.init({blockId:id});
+      AdCtl.addEventListener('onBannerNotFound',function(){toast(L.adNone)});
+      AdCtl.addEventListener('onNonStopShow',function(){toast(L.adBusy)});
+      AdCtl.addEventListener('onTooLongSession',function(){toast(L.adRestart)});
+    }
+    toast(L.adLoad);
+    AdCtl.show().then(function(res){
+      if(res&&res.done===false)return;
+      ok();
+    }).catch(function(res){
+      var d=(res&&res.description)||'';
+      if(/BannerNotFound/i.test(d))toast(L.adNone);
+      else if(/NonStopShow/i.test(d))toast(L.adBusy);
+      else if(/TooLongSession/i.test(d))toast(L.adRestart);
       else toast(L.adFail)});
   }catch(e){toast(L.adFail)}}
 
@@ -602,35 +620,33 @@ function drawShop(){
         S.fondos.push(f3.id);S.fondo=f3.id;refresh();drawShop()})})}
 }
 
-var TASKS=[];
-function loadTasks(){
-  TASKS=[];
-  var tid=taskId();
-  if(CFG.ADSGRAM_ENABLED&&tid&&window.Adsgram){
-    try{TaskCtl=window.Adsgram.init({blockId:tid});
-      TASKS=[{id:'t1',ic:'◈',r:400,n:{es:'Tarea patrocinada',en:'Sponsored task'},done:false}];
-    }catch(e){TaskCtl=null;TASKS=[]}}
-  drawTasks()}
+var TASK_REWARD=400;
 function drawTasks(){
   $('hTasks').textContent=L.tasks;$('subTasks').textContent=L.taskSub;
-  if(!TASKS.length||!TaskCtl){
-    $('taskList').innerHTML='<div class="row"><div class="nm" style="color:var(--mute)">'+
+  var box=$('taskList'),tid=taskId();
+  var ready=window.customElements&&customElements.get&&customElements.get('adsgram-task');
+  if(!CFG.ADSGRAM_ENABLED||!tid||!ready){
+    box.innerHTML='<div class="row"><div class="nm" style="color:var(--mute)">'+
       L.taskEmpty+'</div></div>';return}
-  var h='';
-  for(var i=0;i<TASKS.length;i++){var t=TASKS[i];
-    h+='<div class="row"><div class="tk">'+t.ic+'</div><div class="tx"><b>'+t.n[LG]+'</b>'+
-    '<i>+'+t.r+' ◈</i></div><button class="go'+(t.done?' done':'')+'" data-tk="'+t.id+'">'+
-    (t.done?L.taskDone:L.taskGo)+'</button></div>'}
-  $('taskList').innerHTML=h;
-  var bs=$('taskList').querySelectorAll('[data-tk]');
-  for(var j=0;j<bs.length;j++)(function(x){x.onclick=function(){
-    var t=null;
-    for(var k=0;k<TASKS.length;k++)if(TASKS[k].id===x.dataset.tk)t=TASKS[k];
-    if(!t||t.done||!TaskCtl)return;
-    toast(L.adLoad);
-    TaskCtl.show().then(function(){
-      S.coins+=t.r;api('ad',{kind:'task'});toast('+'+t.r+' ◈');refresh();drawTasks();
-    }).catch(function(){toast(L.taskPending)})}})(bs[j])}
+  box.innerHTML='<adsgram-task class="agtask" data-block-id="'+tid+'">'+
+    '<p slot="reward" class="agr">+'+TASK_REWARD+' \u25C8</p>'+
+    '<div slot="button" class="agb">'+L.taskGo+'</div>'+
+    '<div slot="claim" class="agb agc">'+L.taskClaim+'</div>'+
+    '<div slot="done" class="agb agd">'+L.taskDone+'</div>'+
+    '</adsgram-task>';
+  var el=box.querySelector('adsgram-task');
+  if(!el)return;
+  el.addEventListener('reward',function(){
+    S.coins+=TASK_REWARD;api('ad',{kind:'task'});
+    toast('+'+TASK_REWARD+' \u25C8');refresh()});
+  el.addEventListener('onBannerNotFound',function(){toast(L.taskEmpty)});
+  el.addEventListener('onError',function(){toast(L.taskPending)});
+  el.addEventListener('onTooLongSession',function(){toast(L.adBusy)})}
+function loadTasks(){
+  if(window.customElements&&customElements.whenDefined){
+    customElements.whenDefined('adsgram-task').then(function(){drawTasks()})
+      .catch(function(){})}
+  drawTasks()}
 
 (function(){var tb=document.querySelectorAll('#pRank .tabs button');
  for(var i=0;i<tb.length;i++)(function(b){b.onclick=function(){
