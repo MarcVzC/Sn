@@ -252,6 +252,13 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
 var CFG=window.ABISAL_CFG||{};
 var TG=(window.Telegram&&window.Telegram.WebApp)||null;
 var TGU=(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user)||null;
+var REF=(function(){
+  var v='';
+  try{if(TG&&TG.initDataUnsafe&&TG.initDataUnsafe.start_param)v=TG.initDataUnsafe.start_param}catch(e){}
+  if(!v){try{var q=new URLSearchParams(location.search);
+    v=q.get('tgWebAppStartParam')||q.get('startapp')||q.get('ref')||''}catch(e){}}
+  v=String(v).replace('ref_','').trim();
+  return /^\d+$/.test(v)?v:''})();
 var AD_DAILY=(CFG.LIMITS&&CFG.LIMITS.adsPerDay)||12;
 var PR=CFG.PRICES||{clanCreate:2500,clanRename:800,userRename:0};
 var POT=CFG.POT||{usd:100,raised:0,deadline:null};
@@ -280,7 +287,7 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  tPlay:'Juega una partida',tLen:'Alcanza largo 80',tKill:'Consigue 3 bajas en una partida',
  tTime:'Sobrevive 90 segundos',tDaily:'Entra hoy en el juego',
  rank:'Ranking',tabHab:'Mejores',tabRed:'Reclutadores',tabClan:'Clanes',
- habSub:function(n){return 'Tu mejor partida del ciclo · '+n+' premiados'},
+ habSub:function(n){return 'Puntos acumulados en el ciclo · '+n+' premiados'},
  redSub:function(n){return 'Ganas por lo que juegan tus amigos · '+n+' premiados'},
  clanSub:'Ranking semanal por puntos de sus miembros activos',
  members:'miembros',noClan:'No estás en un clan',yourClan:'Tu clan',
@@ -302,7 +309,7 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  again:'JUGAR OTRA VEZ',menu:'VOLVER AL MENÚ',
  sLen:'largo',sLvl:'nivel',sTm:'tiempo',sK:'bajas',
  noCoins:'No tienes suficientes ◈',noStars:'No tienes suficientes ★',
- payUnavailable:'Pagos no disponibles',payError:'El pago no se completó',paid:'¡Listo!',
+ saveFail:'No se pudo guardar. Inténtalo otra vez',runReject:'Partida no validada',payUnavailable:'Pagos no disponibles',payError:'El pago no se completó',paid:'¡Listo!',
  bought:function(n){return n+' comprado'},equipped:function(n){return n+' equipada'}},
 en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'Best score',
  play:'PLAY',streak:function(n){return '<b>'+n+'</b> day streak · come back tomorrow for x2'},
@@ -323,7 +330,7 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  tPlay:'Play one run',tLen:'Reach length 80',tKill:'Get 3 kills in one run',
  tTime:'Survive 90 seconds',tDaily:'Open the game today',
  rank:'Ranking',tabHab:'Top players',tabRed:'Recruiters',tabClan:'Clans',
- habSub:function(n){return 'Your best run of the cycle · top '+n+' paid'},
+ habSub:function(n){return 'Points earned this cycle · top '+n+' paid'},
  redSub:function(n){return 'You earn from what your friends play · top '+n+' paid'},
  clanSub:'Weekly ranking by active members points',
  members:'members',noClan:'You are not in a clan',yourClan:'Your clan',
@@ -345,7 +352,7 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  again:'PLAY AGAIN',menu:'BACK TO MENU',
  sLen:'length',sLvl:'level',sTm:'time',sK:'kills',
  noCoins:'Not enough ◈',noStars:'Not enough ★',
- payUnavailable:'Payments unavailable',payError:'Payment did not complete',paid:'Done!',
+ saveFail:'Could not save. Try again',runReject:'Run not validated',payUnavailable:'Payments unavailable',payError:'Payment did not complete',paid:'Done!',
  bought:function(n){return n+' purchased'},equipped:function(n){return n+' equipped'}}};
 var L=DICT[LG];
 
@@ -353,7 +360,7 @@ var S={coins:0,stars:0,best:0,bestLen:0,bestTime:0,totalTime:0,totalPts:0,streak
  kills:0,wins:0,netPts:0,friends:[],inv:{esc:1,ima:1,des:1},skin:'neon',skins:['neon'],
  fondo:'abisal',fondos:['abisal'],nemesis:null,nemCnt:0,adsToday:0,clan:null,
  name:(TGU&&(TGU.username||TGU.first_name))||'Jugador',lang:LG,sfx:true,music:true,frOpen:false,
- tasks:{},adsDay:'',pendRuns:[],place:0};
+ tasks:{},adsDay:'',pendRuns:[],place:0,cyclePts:0};
 
 var CONS={esc:{ic:'⬡',c:'#7FE3FF',cost:120,n:{es:'ESCUDO',en:'SHIELD'}},
  ima:{ic:'◎',c:'#FFD24A',cost:90,n:{es:'IMÁN',en:'MAGNET'}},
@@ -406,7 +413,7 @@ var revived=false,shopTab='cons',rankTab='hab',SESSION=null,gameReady=false;
 var LKEY='abisal_s_v1';
 var LFIELDS=['coins','stars','best','bestLen','bestTime','totalTime','totalPts','streak',
 'runs','kills','wins','netPts','inv','skin','skins','fondo','fondos','adsToday','tasks',
-'name','clan','lang','sfx','music','adsDay','pendRuns'];
+'name','clan','lang','sfx','music','adsDay','pendRuns','cyclePts','place'];
 function saveLocal(){
   try{var o={};for(var i=0;i<LFIELDS.length;i++)o[LFIELDS[i]]=S[LFIELDS[i]];
     o.t=Date.now();localStorage.setItem(LKEY,JSON.stringify(o))}catch(e){}}
@@ -440,6 +447,7 @@ function applyServer(r){
 function api(path,body){
   if(!CFG.API_BASE)return Promise.resolve(null);
   var b=body||{};b.initData=TG?TG.initData:'';
+  if(REF)b.ref=REF;
   return fetch(CFG.API_BASE+'/'+path,{method:'POST',
     headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})
     .then(function(r){return r.json()}).catch(function(){return null})}
@@ -507,7 +515,7 @@ addEventListener('message',function(e){
   if(m.type!=='abisal:over')return;
   var d=m.payload||{};
   S.coins+=d.coins||0;S.runs++;S.kills+=d.kills||0;
-  S.totalPts+=d.pts||0;S.best=Math.max(S.best,d.pts||0);
+  S.totalPts+=d.pts||0;S.cyclePts+=d.pts||0;S.best=Math.max(S.best,d.pts||0);
   S.bestLen=Math.max(S.bestLen,d.len||0);
   S.bestTime=Math.max(S.bestTime,d.time||0);S.totalTime+=(d.time||0);
   if(d.inv)S.inv=d.inv;if(d.won)S.wins++;
@@ -529,7 +537,7 @@ addEventListener('message',function(e){
   if(SESSION){run.session=SESSION;SESSION=null;
     api('run',run).then(function(r){
       if(!r){pushPend(run);return}
-      if(r.ok===false){return}
+      if(r.ok===false){toast(L.runReject);return}
       applyServer(r)})}
   else pushPend(run);
   saveLocal()});
@@ -561,7 +569,7 @@ $('oBX2').onclick=function(){showAd(function(){
   frame.contentWindow.postMessage({type:'abisal:x2'},'*');
   var cur=parseInt($('oPts').textContent,10)||0;
   $('oBX2').style.display='none';$('oX2').style.display='block';$('oX2').textContent=L.x2on;
-  $('oPts').textContent=cur*2;S.totalPts+=cur;S.best=Math.max(S.best,cur*2);
+  $('oPts').textContent=cur*2;S.totalPts+=cur;S.cyclePts+=cur;S.best=Math.max(S.best,cur*2);
   refresh();saveLocal()})};
 
 var PAGES=['pHome','pShop','pTasks','pRank','pFriends','pProfile','pSet'];
@@ -673,9 +681,12 @@ function drawShop(){
     each('[data-try]',function(x){
       if(S.adsToday>=AD_DAILY)return toast(L.adLimit);
       var s3=findBy(SKINS,x.dataset.try);if(!s3)return;
-      showAd(function(){S.adsToday++;addOwn(S.skins,s3.id);S.skin=s3.id;saveLocal();
-        api('ad',{kind:'skin',item:s3.id}).then(function(r){applyServer(r);drawShop()});
-        toast(L.equipped(s3.n[LG]));drawShop()})});
+      showAd(function(){
+        S.adsToday++;
+        api('ad',{kind:'skin',item:s3.id}).then(function(r){
+          if(!r||r.error){toast(L.saveFail);drawShop();return}
+          applyServer(r);addOwn(S.skins,s3.id);S.skin=s3.id;saveLocal();
+          toast(L.equipped(s3.n[LG]));drawShop()})})});
   }else{
     h='<div class="psub">'+L.fondoSub+'</div><div class="grid3">';
     for(i=0;i<FONDOS.length;i++){var f=FONDOS[i],fo=S.fondos.indexOf(f.id)>=0,fe=S.fondo===f.id;
@@ -741,7 +752,12 @@ function drawTasks(){
   box.innerHTML=html;
   var el=box.querySelector('adsgram-task');
   if(el){
+    var agAt=0;
+    el.addEventListener('click',function(){if(!agAt)agAt=Date.now()},true);
     el.addEventListener('reward',function(){
+      // solo se acredita si de verdad paso el tiempo minimo desde que se abrio
+      if(!agAt||Date.now()-agAt<TASK_WAIT){agAt=0;return toast(L.taskWait)}
+      agAt=0;
       S.coins+=TASK_REWARD;saveLocal();
       api('ad',{kind:'task'}).then(function(r){applyServer(r)});
       toast('+'+TASK_REWARD+' \u25C8');refresh()});
@@ -810,7 +826,7 @@ function drawRank(){
     return}
   var red=rankTab==='red';
   var list=red?(BOARDS.red.length?BOARDS.red:FKR):(BOARDS.hab.length?BOARDS.hab:FK);
-  var mine=red?S.netPts:S.best;
+  var mine=red?S.netPts:S.cyclePts;
   for(i=0;i<list.length;i++)
     h+='<div class="row"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
     '<div class="nm">'+list[i][0]+'</div><div class="sc">'+list[i][1]+'</div>'+
@@ -919,7 +935,7 @@ function initLocal(){
   if(S.adsDay!==today()){S.adsDay=today();S.adsToday=0}
   refresh()}
 var MAXF=['coins','stars','best','bestLen','bestTime','totalTime','totalPts',
- 'runs','kills','wins','netPts','streak'];
+ 'runs','kills','wins','netPts','streak','cyclePts'];
 function loadState(){
   api('state').then(function(r){
     if(!r||!r.player)return;
@@ -928,9 +944,10 @@ function loadState(){
     var sv={coins:p.coins||0,stars:p.stars||0,best:p.best_pts||0,bestLen:p.best_len||0,
       bestTime:p.best_time||0,totalTime:p.total_time||0,totalPts:p.total_pts||0,
       runs:p.runs||0,kills:p.kills||0,wins:p.wins||0,netPts:p.net_pts||0,
-      streak:p.streak||1};
+      streak:p.streak||1,cyclePts:p.cycle_pts||0};
     for(var i=0;i<MAXF.length;i++){var k=MAXF[i];
       S[k]=Math.max(S[k]||0,sv[k]||0)}
+    S.cyclePts=Math.max(S.cyclePts||0,p.cycle_pts||0);
     S.skin=p.skin||S.skin;S.fondo=p.fondo||S.fondo;
     var ss=p.skins||[],ff=p.fondos||[];
     for(var a=0;a<ss.length;a++)addOwn(S.skins,ss[a]);
