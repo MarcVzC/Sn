@@ -314,6 +314,8 @@ const bc=document.createElement('canvas'),bx=bc.getContext('2d');
 const INTG=!!(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData!==undefined)
   ||window.parent!==window;
 let Q=INTG?1:2;              // 2 alto · 1 medio · 0 bajo
+let LS=.26,BS=.18,bloomOn=true;
+let DPR=1,W=360,H=640;
 let qAcc=0,qN=0;
 function quality(fps){
   qAcc+=fps;qN++;
@@ -335,7 +337,7 @@ function fit(){
   x.setTransform(DPR,0,0,DPR,0,0);
   lc.width=Math.max(2,Math.ceil(W*LS));lc.height=Math.max(2,Math.ceil(H*LS));
   bc.width=Math.max(2,Math.ceil(W*BS));bc.height=Math.max(2,Math.ceil(H*BS))}
-addEventListener('resize',fit);fit();
+addEventListener('resize',fit);applyQ();
 
 const wrapX=v=>((v%MW)+MW)%MW,wrapY=v=>((v%MH)+MH)%MH;
 function dX(a,b){let d=a-b;if(d>MW/2)d-=MW;else if(d<-MW/2)d+=MW;return d}
@@ -834,7 +836,7 @@ function render(){
   if(shake>.4){x.translate(R(-shake,shake),R(-shake,shake));shake*=.85}
   const bg=myFondo?myFondo[0]:biome.bg,rk=myFondo?myFondo[1]:biome.rock;
   x.fillStyle=`rgb(${bg[0]},${bg[1]},${bg[2]})`;x.fillRect(-20,-20,W+40,H+40);
-  const G=QU>=2?150:210,gx0=Math.floor((cam.x-W/2)/G)*G,gy0=Math.floor((cam.y-H/2)/G)*G;
+  const G=Q>=2?150:210,gx0=Math.floor((cam.x-W/2)/G)*G,gy0=Math.floor((cam.y-H/2)/G)*G;
   for(let yy=gy0-G;yy<cam.y+H/2+G;yy+=G)for(let xx=gx0-G;xx<cam.x+W/2+G;xx+=G){
     const s=hsh(wrapX(xx)*.013,wrapY(yy)*.013);
     x.fillStyle=`rgba(${rk[0]*.34+s*22|0},${rk[1]*.34+s*26|0},${rk[2]*.36+s*30|0},.55)`;
@@ -922,8 +924,7 @@ function render(){
         x.beginPath();x.arc(sx(w.x),sy(w.y),22+w.len*.11,0,6.29);x.stroke()}}}
   x.textAlign='left';
 
-  if(Q>=2){
-  if(!bloomOn)return;
+  if(Q>=2&&bloomOn){
   bx.setTransform(1,0,0,1,0,0);bx.globalCompositeOperation='source-over';
   bx.clearRect(0,0,bc.width,bc.height);bx.lineCap='round';bx.lineJoin='round';
   for(const w of worms){
