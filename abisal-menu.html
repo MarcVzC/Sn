@@ -276,9 +276,7 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  adLoad:'Cargando anuncio...',adNone:'No hay anuncios ahora mismo',
  adBusy:'Inténtalo otra vez en un momento',
  adRestart:'Sesión demasiado larga. Cierra y vuelve a abrir',
- taskClaim:'COBRAR',taskWait:'Vuelve al terminar la tarea',
- taskPend:'PENDIENTE',taskPendMsg:'Complétala jugando una partida',
- taskSponsor:'Tareas patrocinadas',
+ taskClaim:'COBRAR',taskWait:'Aún no ha pasado el tiempo',
  tPlay:'Juega una partida',tLen:'Alcanza largo 80',tKill:'Consigue 3 bajas en una partida',
  tTime:'Sobrevive 90 segundos',tDaily:'Entra hoy en el juego',
  rank:'Ranking',tabHab:'Mejores',tabRed:'Reclutadores',tabClan:'Clanes',
@@ -321,9 +319,7 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  adLoad:'Loading ad...',adNone:'No ads available right now',
  adBusy:'Try again in a moment',
  adRestart:'Session too long. Close and reopen',
- taskClaim:'CLAIM',taskWait:'Come back when the task is done',
- taskPend:'PENDING',taskPendMsg:'Complete it by playing a run',
- taskSponsor:'Sponsored tasks',
+ taskClaim:'CLAIM',taskWait:'Not enough time has passed',
  tPlay:'Play one run',tLen:'Reach length 80',tKill:'Get 3 kills in one run',
  tTime:'Survive 90 seconds',tDaily:'Open the game today',
  rank:'Ranking',tabHab:'Top players',tabRed:'Recruiters',tabClan:'Clans',
@@ -357,7 +353,7 @@ var S={coins:0,stars:0,best:0,bestLen:0,bestTime:0,totalTime:0,totalPts:0,streak
  kills:0,wins:0,netPts:0,friends:[],inv:{esc:1,ima:1,des:1},skin:'neon',skins:['neon'],
  fondo:'abisal',fondos:['abisal'],nemesis:null,nemCnt:0,adsToday:0,clan:null,
  name:(TGU&&(TGU.username||TGU.first_name))||'Jugador',lang:LG,sfx:true,music:true,frOpen:false,
- tasks:{},adsDay:'',pendRuns:[]};
+ tasks:{},adsDay:'',pendRuns:[],place:0};
 
 var CONS={esc:{ic:'⬡',c:'#7FE3FF',cost:120,n:{es:'ESCUDO',en:'SHIELD'}},
  ima:{ic:'◎',c:'#FFD24A',cost:90,n:{es:'IMÁN',en:'MAGNET'}},
@@ -528,7 +524,6 @@ addEventListener('message',function(e){
   $('oBX2').style.display=d.canX2?'block':'none';
   $('oBRev').style.display=(d.canRevive&&!revived)?'block':'none';
   $('over').classList.add('on');refresh();
-  taskProgress(d);
   var run={pts:d.pts||0,len:d.len||0,lvl:d.lvl||1,secs:d.time||0,
     kills:d.kills||0,inv:S.inv};
   if(SESSION){run.session=SESSION;SESSION=null;
@@ -708,74 +703,70 @@ function drawShop(){
         addOwn(S.fondos,f3.id);S.fondo=f3.id;saveLocal();refresh();drawShop()})})}
 }
 
-var TASK_REWARD=400,TASK_WAIT=5000,AG_SLOTS=5;
+var TASK_REWARD=400,TASK_WAIT=10000;
 var LTASKS=[
- {id:'play1', r:150,k:'tPlay', chk:function(d){return true}},
- {id:'len80', r:250,k:'tLen',  chk:function(d){return (d.len||0)>=80}},
- {id:'kill3', r:300,k:'tKill', chk:function(d){return (d.kills||0)>=3}},
- {id:'time90',r:250,k:'tTime', chk:function(d){return (d.time||0)>=90}},
- {id:'daily', r:200,k:'tDaily',chk:function(d){return true}}];
+ {id:'play1', r:150,k:'tPlay'},
+ {id:'len80', r:250,k:'tLen'},
+ {id:'kill3', r:300,k:'tKill'},
+ {id:'time90',r:250,k:'tTime'},
+ {id:'daily', r:200,k:'tDaily'}];
 function today(){return new Date().toISOString().slice(0,10)}
 function taskState(id){
   if(!S.tasks)S.tasks={};
   var t=S.tasks[id];
   if(!t||t.day!==today()){t={day:today(),st:0,at:0};S.tasks[id]=t}
   return t}
-// tras cada partida se marcan listas para cobrar las que se hayan cumplido
-function taskProgress(d){
-  var ch=false;
-  for(var i=0;i<LTASKS.length;i++){
-    var t=LTASKS[i],st=taskState(t.id);
-    if(st.st===0&&t.chk(d)){st.st=1;ch=true}}
-  if(taskState('daily').st===0){taskState('daily').st=1;ch=true}
-  if(ch)saveLocal()}
 function drawTasks(){
   $('hTasks').textContent=L.tasks;$('subTasks').textContent=L.taskSub;
   var box=$('taskList'),tid=taskId(),html='',i;
   var ready=window.customElements&&customElements.get&&customElements.get('adsgram-task');
-  // tareas propias: se cobran al cumplirlas jugando
+  // la patrocinada va primero, mezclada con las demas
+  if(CFG.ADSGRAM_ENABLED&&tid&&ready)
+    html+='<adsgram-task class="agtask" data-block-id="'+tid+'">'+
+      '<p slot="reward" class="agr">+'+TASK_REWARD+' \u25C8</p>'+
+      '<div slot="button" class="agb">'+L.taskGo+'</div>'+
+      '<div slot="claim" class="agb agc">'+L.taskClaim+'</div>'+
+      '<div slot="done" class="agb agd">'+L.taskDone+'</div>'+
+      '</adsgram-task>';
   for(i=0;i<LTASKS.length;i++){
     var t=LTASKS[i],st=taskState(t.id),lab,cls='';
     if(st.st===2){lab=L.taskDone;cls=' done'}
-    else if(st.st===1){lab=L.taskClaim;cls=' cl'}
-    else{lab=L.taskPend;cls=' wait'}
+    else if(st.st===1){
+      var left=Math.ceil((TASK_WAIT-(Date.now()-st.at))/1000);
+      if(left>0){lab=left+'s';cls=' wait'}else{lab=L.taskClaim;cls=' cl'}}
+    else lab=L.taskGo;
     html+='<div class="row"><div class="tk">\u25C8</div>'+
       '<div class="tx"><b>'+L[t.k]+'</b><i>+'+t.r+' \u25C8</i></div>'+
       '<button class="go'+cls+'" data-lt="'+t.id+'">'+lab+'</button></div>'}
-  // tareas patrocinadas de AdsGram
-  if(CFG.ADSGRAM_ENABLED&&tid&&ready){
-    html+='<div class="psub" style="margin:14px 0 8px">'+L.taskSponsor+'</div>';
-    for(i=0;i<AG_SLOTS;i++)
-      html+='<adsgram-task class="agtask" data-block-id="'+tid+'">'+
-        '<p slot="reward" class="agr">+'+TASK_REWARD+' \u25C8</p>'+
-        '<div slot="button" class="agb">'+L.taskGo+'</div>'+
-        '<div slot="claim" class="agb agc">'+L.taskClaim+'</div>'+
-        '<div slot="done" class="agb agd">'+L.taskDone+'</div>'+
-        '</adsgram-task>'}
   box.innerHTML=html;
-  var els=box.querySelectorAll('adsgram-task');
-  for(i=0;i<els.length;i++)(function(el){
-    var opened=0;
-    el.addEventListener('click',function(){opened=Date.now()});
+  var el=box.querySelector('adsgram-task');
+  if(el){
     el.addEventListener('reward',function(){
-      // margen real: no acreditar si volvio antes de 5 s
-      if(opened&&Date.now()-opened<TASK_WAIT)return toast(L.taskWait);
       S.coins+=TASK_REWARD;saveLocal();
       api('ad',{kind:'task'}).then(function(r){applyServer(r)});
       toast('+'+TASK_REWARD+' \u25C8');refresh()});
     el.addEventListener('onBannerNotFound',function(){el.style.display='none'});
     el.addEventListener('onError',function(){el.style.display='none'});
-    el.addEventListener('onTooLongSession',function(){toast(L.adBusy)})})(els[i]);
+    el.addEventListener('onTooLongSession',function(){toast(L.adBusy)})}
   var bs=box.querySelectorAll('[data-lt]');
   for(var j=0;j<bs.length;j++)(function(x){x.onclick=function(){
     var id=x.dataset.lt,st=taskState(id),def=null;
     for(var k=0;k<LTASKS.length;k++)if(LTASKS[k].id===id)def=LTASKS[k];
-    if(!def)return;
-    if(st.st===0)return toast(L.taskPendMsg);
-    if(st.st===2)return;
-    st.st=2;S.coins+=def.r;saveLocal();
+    if(!def||st.st===2)return;
+    if(st.st===0){                        // IR: arranca el margen de 10 s
+      st.st=1;st.at=Date.now();saveLocal();drawTasks();
+      if(tkTimer)clearInterval(tkTimer);
+      tkTimer=setInterval(function(){
+        if($('pTasks').classList.contains('on'))drawTasks();
+        else{clearInterval(tkTimer);tkTimer=0}},1000);
+      setTimeout(function(){if(tkTimer){clearInterval(tkTimer);tkTimer=0}
+        drawTasks()},TASK_WAIT+200);
+      return}
+    if(Date.now()-st.at<TASK_WAIT)return toast(L.taskWait);
+    st.st=2;S.coins+=def.r;saveLocal();     // COBRAR
     api('ad',{kind:'task',item:id}).then(function(r){applyServer(r)});
     toast('+'+def.r+' \u25C8');refresh();drawTasks()}})(bs[j])}
+var tkTimer=0;
 function loadTasks(){
   if(window.customElements&&customElements.whenDefined){
     customElements.whenDefined('adsgram-task').then(function(){drawTasks()})
@@ -825,6 +816,7 @@ function drawRank(){
     '<div class="nm">'+list[i][0]+'</div><div class="sc">'+list[i][1]+'</div>'+
     '<div class="pz">'+prizeTxt(i,red)+'</div></div>';
   var pos=1;for(i=0;i<list.length;i++)if(list[i][1]>mine)pos++;
+  if(!red&&S.place>0)pos=S.place;
   $('rankBody').innerHTML='<div class="psub">'+(red?L.redSub(PAID_RED):L.habSub(PAID_HAB))+'</div>'+
     pot+'<div class="rows">'+h+'<div class="row me"><div class="rk">'+pos+'</div>'+
     '<div class="nm">'+S.name+'</div><div class="sc">'+mine+'</div>'+
@@ -946,13 +938,18 @@ function loadState(){
     S.inv=p.inv||S.inv;
     S.name=p.display_name||S.name;
     S.adsToday=Math.max(S.adsToday||0,r.adsToday||0);
+    if(r.friends)S.friends=r.friends;
+    if(typeof r.place==='number')S.place=r.place;
+    if(r.doneTasks&&r.doneTasks.length){
+      for(var d2=0;d2<r.doneTasks.length;d2++){
+        var ts=taskState(r.doneTasks[d2]);ts.st=2}}
     if(r.cycle){POT.usd=r.cycle.usd;POT.raised=r.cycle.raised||0;POT.deadline=r.cycle.deadline}
     if(r.boards){
       BOARDS.hab=(r.boards.hab||[]).map(function(x){return [x.name,x.pts]});
       BOARDS.red=(r.boards.red||[]).map(function(x){return [x.name,x.pts]});
       BOARDS.clan=(r.boards.clans||[]).map(function(x){return [x.name,x.members,x.week_pts]})}
     saveLocal();flushPend();
-    refresh();drawShop();drawRank();drawProfile()})}
+    refresh();drawShop();drawRank();drawProfile();drawFriends();drawTasks()})}
 
 var bg=$('bg'),g=bg.getContext('2d',{alpha:false});
 var W=0,H=0,tk=0,path=[],ang=-.6,hx=0,hy=0,layer=null,lastT=0,bgOn=true;
