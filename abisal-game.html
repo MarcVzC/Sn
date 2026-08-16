@@ -42,9 +42,9 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
 .pw button:active{transform:scale(.93)}
 .pw button.no{opacity:.2}
 .pw button.act{box-shadow:0 0 18px currentColor}
-.pw button u{position:absolute;left:-2px;right:-2px;bottom:-7px;text-decoration:none;
-  font:700 10px JetBrains Mono,monospace;background:#0A1020;border-radius:6px;
-  border:1px solid currentColor;padding:0 3px}
+.pw button u{position:absolute;left:50%;transform:translateX(-50%);top:-9px;
+  text-decoration:none;font:700 10px JetBrains Mono,monospace;background:#0A1020;
+  border-radius:7px;border:1px solid currentColor;padding:1px 5px;white-space:nowrap}
 .pw button em{position:absolute;right:-3px;top:-4px;font-style:normal;font:700 9px JetBrains Mono,monospace;
   background:#0A1020;border:1px solid currentColor;border-radius:8px;padding:1px 4px}
 .hint{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 22px);z-index:4;pointer-events:none;
@@ -196,7 +196,9 @@ function mNoise(t,dur,peak,f,q){
 function musTick(){
   if(!AC||!mus||!musOn)return;
   const spb=60/mus.bpm/4;                        // semicorchea
+  let guard=0;                                   // tope de pasos por tick
   while(musNext<AC.currentTime+.25){
+    if(++guard>8){musNext=AC.currentTime+.05;break} // no acumular deuda si la pestana estuvo en pausa
     const t=musNext,st=musStep%64,bar=Math.floor(st/16),beat=st%16;
     const ch=mus.prog[bar],base=mus.root*semi(ch);
     // pad: acorde largo al inicio de cada compás
@@ -235,11 +237,16 @@ function musicStart(bi){
     musLoop=setInterval(musTick,60)}
   musGain.gain.cancelScheduledValues(AC.currentTime);
   musGain.gain.setTargetAtTime(musOn?.62:0,AC.currentTime,1.0)}
+// sfxWant/musWant guardan lo que pidio el menu; el boton solo silencia/restaura
+let sfxWant=true,musWant=true;
 function toggleAudio(){
-  audioInit();musOn=!musOn;sfxOn=musOn;
-  if(AC)musGain.gain.setTargetAtTime(musOn?.5:0,AC.currentTime,.4);
-  document.getElementById('bSnd').textContent=musOn?'♪':'✕';
-  document.getElementById('bSnd').style.opacity=musOn?.55:.25}
+  audioInit();
+  const on=!(musOn||sfxOn);
+  if(on&&!musWant&&!sfxWant){musWant=true;sfxWant=true}  // nada que restaurar: enciende ambos
+  musOn=on&&musWant;sfxOn=on&&sfxWant;
+  if(AC&&musGain)musGain.gain.setTargetAtTime(musOn?.5:0,AC.currentTime,.4);
+  document.getElementById('bSnd').textContent=on?'♪':'✕';
+  document.getElementById('bSnd').style.opacity=on?.55:.25}
 
 const LG=(()=>{
   try{const t=window.Telegram&&window.Telegram.WebApp&&
@@ -297,6 +304,45 @@ const TIER=[{n:0,p:.40,sk:.55},{n:1,p:.38,sk:.8},{n:2,p:.22,sk:1.0}];
 const PERS=[{n:'cazador',a:1.0,f:.6,c:.4,b:.75},{n:'glotón',a:.25,f:1.0,c:.55,b:.6},
  {n:'táctico',a:.6,f:.8,c:.95,b:.5},{n:'temerario',a:.9,f:.9,c:.25,b:.9},
  {n:'esquivo',a:.15,f:.7,c:1.0,b:.3},{n:'carroñero',a:.4,f:1.0,c:.7,b:.7}];
+/* elenco fijo: [nombre, tono, patron, aleta, personalidad, rango, pericia] */
+const ROSTER=[
+['KRAKEN',315,1,3,0,2,1.00],['viborakiller',0,4,1,3,2,.96],['Ana_88',195,0,2,2,2,.94],
+['m0rt4l',270,3,3,0,2,.92],['Nyx',285,5,0,4,2,.90],['La_Bestia',15,7,1,3,2,.88],
+['QuetzaL',150,2,2,2,2,.86],['Sombra',255,6,3,4,2,.84],
+['luisfer',210,0,1,1,1,.82],['kenji',345,3,2,0,1,.80],['Zeta9',180,4,0,2,1,.79],
+['Dr4go',30,7,3,3,1,.78],['elCubano',120,1,1,5,1,.76],['vortex7',240,5,2,2,1,.75],
+['Onix',300,6,0,4,1,.74],['Tiburon',200,2,3,0,1,.73],['Ares',345,7,1,3,1,.72],
+['Puma_',45,0,2,1,1,.71],['Rako',165,3,0,5,1,.70],['Sable',225,4,3,2,1,.69],
+['Vega',135,1,1,1,1,.68],['Bran',330,5,2,0,1,.67],['Duna',60,6,0,5,1,.66],
+['Ogro',15,7,3,3,1,.65],['Perla',285,2,1,4,1,.64],
+['pipo23',90,0,2,1,0,.60],['Mila',315,3,0,5,0,.58],['tuntun',105,1,1,1,0,.56],
+['kiko',195,4,3,5,0,.55],['Lupita',330,2,2,4,0,.54],['N30N',180,5,0,2,0,.53],
+['Bicho',75,6,1,1,0,.52],['tavo',255,0,3,3,0,.50],['Cheko',30,7,2,5,0,.48],
+['krlos',210,1,0,4,0,.46],['yuli',300,3,1,1,0,.44]];
+const RSEEN={};
+let busyNames={};
+/* memoria del elenco: quien mas te mata vuelve mas y mejora */
+function pickRoster(){
+  const lv=Math.max(1,lvl);
+  const pool=[];
+  for(let i=0;i<ROSTER.length;i++){
+    const r=ROSTER[i];
+    if(busyNames[r[0]])continue;
+    let w=1;
+    if(r[5]===0)w=Math.max(.05,1.6-lv*.28);      // los novatos desaparecen con el nivel
+    else if(r[5]===1)w=1+Math.min(.8,lv*.10);
+    else w=.35+Math.min(1.4,lv*.22);             // los elite aparecen mas
+    const k=RSEEN[r[0]]||0;
+    w*=1+Math.min(1.2,k*.35);                    // rivalidad: vuelven mas a menudo
+    pool.push([r,w])}
+  if(!pool.length){
+    for(let i=0;i<ROSTER.length;i++)if(!busyNames[ROSTER[i][0]])return ROSTER[i];
+    busyNames={};                       // nunca deja el juego sin rivales
+    return ROSTER[Math.floor(R(0,ROSTER.length))]}
+  let tot=0;for(let i=0;i<pool.length;i++)tot+=pool[i][1];
+  let x2=Math.random()*tot;
+  for(let i=0;i<pool.length;i++){x2-=pool[i][1];if(x2<=0)return pool[i][0]}
+  return pool[pool.length-1][0]}
 const BIO=[{n:T.bio[0],bg:[13,22,42],rock:[104,128,168]},
  {n:T.bio[1],bg:[10,24,52],rock:[112,162,212]},
  {n:T.bio[2],bg:[24,12,48],rock:[134,102,188]},
@@ -315,7 +361,15 @@ const INTG=!!(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.in
   ||window.parent!==window;
 let Q=INTG?1:2;              // 2 alto · 1 medio · 0 bajo
 let LS=.26,BS=.18,bloomOn=true;
-let DPR=1,W=360,H=640;
+let DPR=1,W=360,H=640,fitOk=false;   // fitOk: los canvas tienen ya un tamano real
+let needFit=false,rzAt=0,startPend=null;
+// run se declara AQUI y no mas abajo: applyQ() lo consulta y se ejecuta al cargar
+// el script, antes del bloque de estado de la partida.
+let run=false;
+// true = no redimensionar JAMAS en partida (el canvas se estira hasta que acabe).
+// false = se redimensiona, pero solo cuando el tamano lleva 250ms estable y siempre
+// dentro del frame justo antes de render, que es lo que evita el frame en negro.
+const HARD_NO_RESIZE_IN_RUN=false;
 let qAcc=0,qN=0;
 function quality(fps){
   qAcc+=fps;qN++;
@@ -324,20 +378,35 @@ function quality(fps){
   if(avg<34&&Q>0){Q--;applyQ()}
   else if(avg>54&&Q<2){Q++;applyQ()}}
 function applyQ(){
-  LS=Q===2?.34:(Q===1?.26:.20);
-  BS=Q===2?.25:.18;
   CFG.food=Q===2?340:(Q===1?230:150);
   CFG.bots=Q===2?13:(Q===1?11:9);
+  // nunca redimensionar los canvas en caliente: provoca parpadeo / caverna negra.
+  // LS/BS quedan pendientes y los aplica el proximo fit() (start / resize sin partida).
+  if(run)return;
   fit()}
+// fit() es idempotente y defensivo: devuelve true solo si dejo los canvas validos.
+// Solo se llama desde el loop (dentro del rAF) o desde start(): nunca desde el evento
+// resize, porque redimensionar fuera del frame deja el canvas vacio hasta el siguiente
+// pintado, y eso es justo el fogonazo negro al rotar.
 function fit(){
+  const iw=Math.floor(innerWidth||document.documentElement.clientWidth||0);
+  const ih=Math.floor(innerHeight||document.documentElement.clientHeight||0);
+  // iframe todavia oculto, o layout a medias tras rotar: no tocar nada y reintentar luego
+  if(iw<8||ih<8){fitOk=false;return false}
+  // LS/BS se derivan aqui para que coincidan siempre con el tamano real de lc/bc
+  LS=Q===2?.34:(Q===1?.26:.20);
+  BS=Q===2?.25:.18;
   DPR=Q===2?Math.min(devicePixelRatio||1,1.5):1;
-  W=Math.max(1,innerWidth||document.documentElement.clientWidth||360);
-  H=Math.max(1,innerHeight||document.documentElement.clientHeight||640);
-  cv.width=Math.max(1,Math.ceil(W*DPR));cv.height=Math.max(1,Math.ceil(H*DPR));
+  W=iw;H=ih;
+  cv.width=Math.max(2,Math.ceil(W*DPR));cv.height=Math.max(2,Math.ceil(H*DPR));
   x.setTransform(DPR,0,0,DPR,0,0);
   lc.width=Math.max(2,Math.ceil(W*LS));lc.height=Math.max(2,Math.ceil(H*LS));
-  bc.width=Math.max(2,Math.ceil(W*BS));bc.height=Math.max(2,Math.ceil(H*BS))}
-addEventListener('resize',fit);applyQ();
+  bc.width=Math.max(2,Math.ceil(W*BS));bc.height=Math.max(2,Math.ceil(H*BS));
+  needFit=false;fitOk=true;return true}
+// el evento resize NO redimensiona: solo anota que hay que hacerlo en el proximo frame
+function onResize(){needFit=true;rzAt=performance.now()}
+addEventListener('resize',onResize);addEventListener('orientationchange',onResize);
+applyQ();
 
 const wrapX=v=>((v%MW)+MW)%MW,wrapY=v=>((v%MH)+MH)%MH;
 function dX(a,b){let d=a-b;if(d>MW/2)d-=MW;else if(d<-MW/2)d+=MW;return d}
@@ -409,7 +478,7 @@ for(let k=0;k<7;k++){
 const R=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.floor(Math.random()*a.length)];
 const hsh=(i,j)=>{const s=Math.sin(i*127.1+j*311.7)*43758.5453;return s-Math.floor(s)};
 
-let cam,tmr,lvl,kills,run=false,tk=0,shake=0,tipT=0,flash=0,rocks=[],
+let cam,tmr,lvl,kills,tk=0,shake=0,tipT=0,flash=0,rocks=[],
     food,tox,worms,parts,fx,motes,
     nemesis=null,nemCnt=0,killer=null,fpsV=60,biome=BIO[0],bidx=0;
 
@@ -453,16 +522,20 @@ function clearance(b,ang,maxD){
   return maxD;
 }
 
-function rollTier(){
-  const up=Math.min(.3,(lvl-1)*.05);          // más élites según sube el nivel
-  const w=[Math.max(.08,TIER[0].p-up),TIER[1].p,TIER[2].p+up];
-  const tot=w[0]+w[1]+w[2];let r=Math.random()*tot,a=0;
-  for(let i=0;i<3;i++){a+=w[i];if(r<a)return TIER[i]}return TIER[0]}
-function mkW(p,px,py){const per=p?null:pick(PERS),tr=p?null:rollTier();
-  return{p,name:p?'TÚ':pick(NAMES),per,tier:tr,sk:p?1:tr.sk,x:px,y:py,ang:R(0,6.28),
-    len:CFG.start,tlen:CFG.start,path:[],acc:0,hue:p?188:Math.floor(R(0,24))*15,
-    pat:p?0:Math.floor(R(0,8)),fin:p?2:Math.floor(R(0,4)),
-    boost:0,alive:true,tgt:null,goal:null,gT:0,dT:0,gd:999,lvlSk:1,new:150,esc:0,ima:0}}
+function mkW(p,px,py){
+  if(p)return{p:1,name:'TÚ',per:null,tier:{n:2},sk:1,x:px,y:py,ang:R(0,6.28),
+    len:CFG.start,tlen:CFG.start,path:[],acc:0,hue:myHue,pat:0,fin:2,
+    boost:0,alive:true,tgt:null,goal:null,gT:0,dT:0,gd:999,lvlSk:1,new:150,
+    esc:0,ima:0,blind:0};
+  const r=pickRoster();
+  busyNames[r[0]]=1;
+  const kills=RSEEN[r[0]]||0;
+  return{p:0,name:r[0],per:PERS[r[4]],tier:TIER[r[5]],
+    sk:Math.min(1,r[6]+Math.min(.12,kills*.03)),   // mejora si te ha matado
+    x:px,y:py,ang:R(0,6.28),len:CFG.start,tlen:CFG.start,path:[],acc:0,
+    hue:r[1],pat:r[2],fin:r[3],
+    boost:0,alive:true,tgt:null,goal:null,gT:0,dT:0,gd:999,lvlSk:1,new:150,
+    esc:0,ima:0,blind:0,mood:0,moodT:0}}
 const mkF=()=>({x:R(0,MW),y:R(0,MH),v:CFG.gain,r:3.2,d:0,ph:R(0,6.3)});
 const mkT=()=>({x:R(0,MW),y:R(0,MH),ph:R(0,6.3),rot:R(0,6.3)});
 function seedPath(w){w.path=[];const n=Math.max(8,Math.floor(w.len*CFG.ptsPer));
@@ -487,6 +560,7 @@ function buildRocks(){rocks=[];
 
 function reset(){
   tmr=0;lvl=1;kills=0;killer=null;bidx=0;biome=BIO[0];flash=0;
+  busyNames={};
   food=[];tox=[];worms=[];parts=[];fx=[];motes=[];
   document.getElementById('feed').innerHTML='';
   document.getElementById('lv').textContent=T.lvl+' 1';
@@ -521,7 +595,8 @@ function use(k){
   else if(k==='ima'){inv[k]--;p.ima=d.t;sfx('pup')}
   else{if(usedDes)return;usedDes=true;inv[k]--;flash=90;shake=14;sfx('flash');
     for(const w of worms){if(w.p||!w.alive)continue;
-      if(dist2(w.x,w.y,p.x,p.y)<300*300){w.dT=45;
+      if(dist2(w.x,w.y,p.x,p.y)<340*340){
+        w.blind=180;w.goal=null;w.gT=0;w.dT=50;
         w.tgt=Math.atan2(dY(w.y,p.y),dX(w.x,p.x))}}
     for(let i=0;i<40;i++)parts.push({x:p.x,y:p.y,vx:R(-11,11),vy:R(-11,11),l:1,h:320})}
   feed(d.n,d.c);pwHud()}
@@ -545,6 +620,11 @@ cv.addEventListener('lostpointercapture',up);
 
 function chooseGoal(b){
   const q=b.per;let best=null,bs=-1e9;
+  // retirada tactica: si esta muy mermado deja de cazar hasta recuperarse
+  if((b.moodT-=1)<=0){
+    b.mood=(b.len<CFG.start+8)?1:0;
+    b.moodT=40+Math.random()*40}
+  const hurt=b.mood===1;
   for(let i=0;i<food.length;i++){
     const f=food[i],ax=dX(f.x,b.x),ay=dY(f.y,b.y),d2=ax*ax+ay*ay;
     if(d2>800*800)continue;
@@ -556,7 +636,7 @@ function chooseGoal(b){
     const ax=dX(w.x,b.x),ay=dY(w.y,b.y),d=Math.hypot(ax,ay);
     if(d<20||d>700)continue;
     const ratio=w.len/b.len;
-    if(ratio<0.94){
+    if(ratio<0.94&&!hurt&&!b.blind){
       // interceptar por delante, no perseguir por detrás
       const myV=b.boost?CFG.boost:CFG.spd;
       let lead=d/Math.max(myV,.1)*CFG.spd*(.7+b.sk*.5);
@@ -566,8 +646,14 @@ function chooseGoal(b){
       const canCut=cd/myV < lead/CFG.spd*1.25;
       // cortarle el paso de lado: cruzarse por delante de su cabeza
       const side=Math.sign(Math.cos(w.ang)*ay-Math.sin(w.ang)*ax)||1;
-      const bx2=wrapX(w.x+Math.cos(w.ang)*lead*.8-Math.sin(w.ang)*side*38);
-      const by2=wrapY(w.y+Math.sin(w.ang)*lead*.8+Math.cos(w.ang)*side*38);
+      // side2 debe calcularse ANTES de bx2/by2: se usaba antes de su declaracion let
+      // y lanzaba TDZ, abortando el step() completo del frame
+      let side2=side;
+      for(const o of worms){
+        if(o===b||o.p||!o.alive||!o.goal||o.goal.t!=='hunt')continue;
+        if(o.goal.ref===w){side2=-side;break}}   // manada: por el lado contrario
+      const bx2=wrapX(w.x+Math.cos(w.ang)*lead*.8-Math.sin(w.ang)*side2*38);
+      const by2=wrapY(w.y+Math.sin(w.ang)*lead*.8+Math.cos(w.ang)*side2*38);
       let sc=(70+w.len*3.6)*(0.7+q.a*2.6)*460/(d+120);
       if(canCut)sc*=2.2;
       if(ratio<.7)sc*=1.5;
@@ -578,6 +664,15 @@ function chooseGoal(b){
         const sc=(760-d)*(.9+q.c*1.6)*2.1*b.sk;
         if(sc>bs){bs=sc;best={t:'flee',
           gx:wrapX(b.x-ax/d*420),gy:wrapY(b.y-ay/d*420)}}}}}
+  // emboscada: los tacticos esperan al lado de un banquete
+  if(best&&best.t==='food'&&best.big&&q.c>.8&&b.len>CFG.start+20){
+    let rivals=0;
+    for(const w of worms){
+      if(w===b||!w.alive)continue;
+      if(dist2(w.x,w.y,best.gx,best.gy)<230*230)rivals++}
+    if(rivals>0){
+      const ax=dX(best.gx,b.x),ay=dY(best.gy,b.y),d=Math.hypot(ax,ay)||1;
+      best={t:'hunt',gx:wrapX(best.gx-ax/d*150),gy:wrapY(best.gy-ay/d*150),ref:null}}}
   if(!best){
     const a=b.ang+R(-.7,.7);
     best={t:'roam',gx:wrapX(b.x+Math.cos(a)*420),gy:wrapY(b.y+Math.sin(a)*420)}}
@@ -585,6 +680,7 @@ function chooseGoal(b){
 const DIRS=17;
 function think(b,dt){
   const q=b.per;
+  if(b.blind>0){b.blind-=dt;if(b.blind<0)b.blind=0}
   if((b.gT-=dt)<=0)chooseGoal(b);
   if((b.dT-=dt)>0)return;
   b.dT=2;
@@ -643,7 +739,10 @@ function kill(w,by){
     food.push({x:wrapX(s.x+R(-16,16)),y:wrapY(s.y+R(-16,16)),v:per,r:9,d:1,ph:R(0,6.3)})}
   for(let i=0;i<22;i++)parts.push({x:w.x,y:w.y,vx:R(-7,7),vy:R(-7,7),l:1,h:w.hue});
   fx.push({x:w.x,y:w.y,r:0,l:1,h:w.hue});
-  if(w.p){killer=by;sfx('death');end()}
+  if(!w.p)delete busyNames[w.name];
+  if(w.p){killer=by;
+    if(by&&by.name)RSEEN[by.name]=(RSEEN[by.name]||0)+1;
+    sfx('death');end()}
   else{if(by&&by.p){kills++;shake=9;coins+=25;sfx('kill');feed(T.youKill(w.name),'#C6FF4A')}
        else if(by)feed(T.botKill(by.name,w.name),'rgba(237,242,255,.5)')}}
 
@@ -666,7 +765,9 @@ function step(dt){
   if(flash>0)flash-=dt;
   if(p.ima>0){p.ima-=dt;if(p.ima<0){p.ima=0;pwHud()}}
   if(p.esc>0){p.esc-=dt;if(p.esc<0){p.esc=0;pwHud()}}
-  gridBuild();
+  // el grid solo lo consume clearance() (IA); reconstruirlo cada 2 frames
+  // ahorra CPU y no afecta a las colisiones reales
+  if(tk%2===0)gridBuild();
   for(const w of worms){
     if(!w.alive)continue;
     if(w.new>0)w.new-=dt;
@@ -681,7 +782,7 @@ function step(dt){
     }else think(w,dt);
     if(w.tgt!=null){let d=((w.tgt-w.ang+Math.PI*3)%6.2832)-Math.PI;
       // los bots usan el MISMO motor de giro que el jugador
-      const a=(w.p?CFG.turnP:CFG.turnP*(.62+w.sk*.38)*w.lvlSk)*dt;
+      const a=(w.p?CFG.turnP:CFG.turnP*(.62+w.sk*.38)*w.lvlSk*(w.blind>0?.35:1))*dt;
       w.ang+=Math.abs(d)<=a?d:(d>0?a:-a)}
     w.len+=(w.tlen-w.len)*CFG.smooth*dt;
     if(w.boost){w.tlen-=.02*dt;
@@ -717,8 +818,21 @@ function step(dt){
   while(food.length<CFG.food)food.push(mkF());
   const want=CFG.bots+Math.floor((lvl-1)*.6);
   let live=worms.filter(w=>w.alive&&!w.p).length;
-  if(live<want&&tk%8===0){const s=safeSpawn();
-    if(s){const b=mkW(false,s.x,s.y);seedPath(b);worms.push(b)}}
+  if(live<want&&tk%8===0){const sp=safeSpawn();
+    if(sp){
+      let b;
+      // tu nemesis vuelve a por ti
+      if(nemesis&&!busyNames[nemesis]&&Math.random()<.45){
+        let rr=null;
+        for(let i=0;i<ROSTER.length;i++)if(ROSTER[i][0]===nemesis)rr=ROSTER[i];
+        if(rr){busyNames[rr[0]]=1;
+          b={p:0,name:rr[0],per:PERS[rr[4]],tier:TIER[rr[5]],
+            sk:Math.min(1,rr[6]+Math.min(.12,(RSEEN[rr[0]]||0)*.03)),
+            x:sp.x,y:sp.y,ang:R(0,6.28),len:CFG.start,tlen:CFG.start,path:[],acc:0,
+            hue:rr[1],pat:rr[2],fin:rr[3],boost:0,alive:true,tgt:null,goal:null,
+            gT:0,dT:0,gd:999,lvlSk:1,new:150,esc:0,ima:0,blind:0,mood:0,moodT:0}}}
+      if(!b)b=mkW(false,sp.x,sp.y);
+      seedPath(b);worms.push(b)}}
   worms=worms.filter(w=>w.p||w.alive);
   if(p.alive){cam.x=p.x;cam.y=p.y}
   for(const q of parts){q.x=wrapX(q.x+q.vx*dt);q.y=wrapY(q.y+q.vy*dt);
@@ -831,6 +945,9 @@ function drawWorm(w){
     x.lineWidth=2.4;x.beginPath();x.arc(hx,hy,r*2.3,0,6.29);x.stroke()}
   x.globalAlpha=1}
 function render(){
+  // nunca pintar sobre canvas invalidos. Si no hay tamano util se salta el frame:
+  // el fit lo hace el loop, no render (redimensionar aqui provocaria el fogonazo negro).
+  if(!fitOk||cv.width<2||cv.height<2||lc.width<2||bc.width<2){needFit=true;return}
   const p=P();
   x.save();
   if(shake>.4){x.translate(R(-shake,shake),R(-shake,shake));shake*=.85}
@@ -918,8 +1035,15 @@ function render(){
     if(!w.alive||w.p)continue;
     const d=Math.hypot(dX(w.x,p.x),dY(w.y,p.y));
     if(d<430){const al=1-d/430,n=w.name===nemesis;
-      x.fillStyle=n?`rgba(255,80,110,${al})`:`rgba(237,242,255,${al*.55})`;
+      x.fillStyle=n?`rgba(255,80,110,${al})`
+        :(w.tier.n===2?`rgba(255,201,61,${al*.85})`:`rgba(237,242,255,${al*.55})`);
       x.fillText((w.tier.n===2?'★ ':'')+w.name,sx(w.x),sy(w.y)-(18+w.len*.1));
+      if(w.tier.n===2&&!n){
+        x.strokeStyle=`rgba(255,201,61,${al*.3})`;x.lineWidth=1.4;
+        x.beginPath();x.arc(sx(w.x),sy(w.y),20+w.len*.1,0,6.29);x.stroke()}
+      if(w.blind>0){
+        x.strokeStyle=`rgba(255,138,216,${al*.55})`;x.lineWidth=2;
+        x.beginPath();x.arc(sx(w.x),sy(w.y),24+w.len*.11,0,6.29);x.stroke()}
       if(n){x.strokeStyle=`rgba(255,60,100,${al*.6})`;x.lineWidth=2;
         x.beginPath();x.arc(sx(w.x),sy(w.y),22+w.len*.11,0,6.29);x.stroke()}}}
   x.textAlign='left';
@@ -963,27 +1087,46 @@ function render(){
   vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.6)');
   x.fillStyle=vg;x.fillRect(0,0,W,H)}
 
-let last=performance.now(),fT=0,fC=0;
+let last=performance.now(),fT=0,fC=0,errN=0;   // errN: errores seguidos en el loop
 function loop(now){
   requestAnimationFrame(loop);
   if(!now)now=performance.now();
   const iw=innerWidth||document.documentElement.clientWidth;
   const ih=innerHeight||document.documentElement.clientHeight;
-  if(iw&&ih&&(W!==iw||H!==ih||!cv.width||!lc.width))fit();
+  if(iw&&ih&&(W!==iw||H!==ih)){if(!needFit)rzAt=now;needFit=true}
+  if(!fitOk||cv.width<2||lc.width<2||bc.width<2)needFit=true;
+  if(needFit){
+    // en partida se espera a que el tamano lleve 250ms estable (y nada si el modo
+    // estricto esta activo); el fit ocurre aqui, justo antes de render, sin frame vacio
+    const canFit=!run||(!HARD_NO_RESIZE_IN_RUN&&now-rzAt>250);
+    if(!fitOk||canFit)fit()}
+  // arranque que quedo esperando a tener tamano real (sin timers sueltos)
+  if(startPend&&fitOk){const c=startPend;startPend=null;start(c)}
   const raw=now-last;let dt=raw/16.667;last=now;dt=Math.max(.35,Math.min(dt,2.8));
   fT+=raw;fC++;
   if(fC>=30){fpsV=Math.round(1000/(fT/fC));fT=0;fC=0;
     document.getElementById('hfps').textContent=fpsV;
     if(run)quality(fpsV)}
-  try{ if(run)step(dt); render(); }catch(err){ console.error(err) }}
+  try{ if(run)step(dt); render(); errN=0 }
+  catch(err){ console.error(err);
+    // si el frame falla 30 veces seguidas, detener en vez de quedar en bucle zombie
+    if(++errN>30){errN=0;run=false;musicStop()} }}
 
+// origen del menu (mismo dominio en el despliegue); '*' solo si no se puede deducir
+const POR=(function(){
+  try{if(document.referrer){const o=new URL(document.referrer).origin;
+    if(o&&o!=='null')return o}}catch(e){}
+  // menu y motor se despliegan en el mismo dominio: en Telegram el referrer suele
+  // venir vacio, asi que el origen propio es la mejor referencia (y evita el '*')
+  return (location.origin&&location.origin!=='null')?location.origin:'*'})();
 function send(type,payload){
-  if(embedded)parent.postMessage({type,payload},'*')}
+  if(embedded)parent.postMessage({type,payload},POR)}
 /* PUNTOS = largo máximo + nivel×40 + bajas×60. Siempre se suman: no hay que ganar. */
 let prevLen=CFG.start,usedDes=false;
 let usedRev=false,usedX2=false,won=false,maxLen=0,lastPts=0,deadLen=0;
 function calcPts(){return Math.floor(maxLen)+lvl*40+kills*60}
 function showEnd(){
+  if(embedded)return;                // embebido manda el overlay del menu (#over)
   const d=document.getElementById('solo');
   document.getElementById('sKill').style.display=(killer||won)?'block':'none';
   document.getElementById('sWho').textContent=won?T.survivor:(killer?killer.name:'');
@@ -1019,12 +1162,13 @@ function end(){
   lastPts=calcPts();
   if(killer){if(nemesis===killer.name)nemCnt++;else{nemesis=killer.name;nemCnt=1}}
   send('abisal:over',{pts:lastPts,len:Math.floor(maxLen),lvl,time:Math.floor(tmr/60),
-    kills,coins,inv:{...inv},killer:killer?killer.name:null,nemesis,nemCnt,
+    kills,coins,inv:{...inv},killer:killer?killer.name:null,won:false,nemesis,nemCnt,
     canRevive:!usedRev,canX2:!usedX2});
   showEnd()}
-function doX2(){                       // ilimitado
-  if(usedX2)return;usedX2=true;lastPts*=2;
-  coins+=Math.floor(lastPts/10);
+function doX2(){
+  if(usedX2)return;
+  usedX2=true;usedRev=true;               // elegir x2 renuncia a revivir
+  lastPts*=2;coins+=Math.floor(lastPts/10);
   send('abisal:coins',{coins});showEnd()}
 function doRevive(){                   // una sola vez por partida
   if(usedRev)return;usedRev=true;
@@ -1050,13 +1194,17 @@ const FONDOF={abisal:[[13,22,42],[104,128,168]],ceniza:[[26,24,28],[150,142,132]
  solar:[[36,22,6],[228,168,72]],nebulosa:[[18,8,40],[150,110,220]]};
 let mySkin=null,myFondo=null,myHue=188;
 function start(cfg){
-  fit();
+  // el iframe puede acabar de hacerse visible: sin tamano real no se arranca.
+  // Queda pendiente y el propio loop lo dispara en cuanto fit() tenga exito
+  // (nada de intervals sueltos que puedan quedarse girando).
+  if(!fit()){startPend=cfg||{};run=false;return}
+  startPend=null;
   if(cfg&&cfg.skin&&SKINF[cfg.skin]){mySkin=SKINF[cfg.skin];
     const c0=mySkin(0,0);myHue=((c0[0]%360)+360)%360}
   else{mySkin=null;myHue=188}
   if(cfg&&cfg.fondo&&FONDOF[cfg.fondo])myFondo=FONDOF[cfg.fondo];
-  if(cfg&&typeof cfg.sfx==='boolean')sfxOn=cfg.sfx;
-  if(cfg&&typeof cfg.music==='boolean')musOn=cfg.music;
+  if(cfg&&typeof cfg.sfx==='boolean')sfxWant=sfxOn=cfg.sfx;
+  if(cfg&&typeof cfg.music==='boolean')musWant=musOn=cfg.music;
   if(cfg&&cfg.inv)inv={...cfg.inv};
   if(cfg&&typeof cfg.coins==='number')coins=cfg.coins;
   usedRev=false;usedX2=false;won=false;usedDes=false;maxLen=CFG.start;lastPts=0;prevLen=CFG.start;
@@ -1064,16 +1212,25 @@ function start(cfg){
   document.getElementById('solo').classList.remove('on');
   reset();board();musicStart(0);document.getElementById('tip').style.opacity=1;
   last=performance.now();run=true}
+// solo se aceptan mensajes del padre y con forma conocida
+const MSGOK={'abisal:start':1,'abisal:stop':1,'abisal:revive':1,'abisal:x2':1,
+  'abisal:setInv':1,'abisal:settings':1};
 addEventListener('message',e=>{
-  const m=e.data||{};
+  if(embedded&&e.source!==parent)return;
+  if(e.origin&&e.origin!=='null'&&e.origin!==POR&&e.origin!==location.origin)return;
+  const m=e.data;
+  if(!m||typeof m!=='object'||typeof m.type!=='string'||!MSGOK[m.type])return;
+  if(m.payload!=null&&typeof m.payload!=='object')return;
   if(m.type==='abisal:start')start(m.payload||{});
-  else if(m.type==='abisal:stop')run=false;
+  // al parar: fuera musica. El resize pendiente lo aplica el loop en el proximo frame
+  // (con run=false ya no hay espera), nunca aqui: fuera del rAF es donde aparece el negro.
+  else if(m.type==='abisal:stop'){run=false;musicStop()}
   else if(m.type==='abisal:revive')doRevive();
   else if(m.type==='abisal:x2')doX2();
   else if(m.type==='abisal:setInv'){inv={...(m.payload||{})};pwHud()}
   else if(m.type==='abisal:settings'){const p=m.payload||{};
-    if(typeof p.sfx==='boolean')sfxOn=p.sfx;
-    if(typeof p.music==='boolean'){musOn=p.music;
+    if(typeof p.sfx==='boolean')sfxWant=sfxOn=p.sfx;
+    if(typeof p.music==='boolean'){musWant=musOn=p.music;
       if(AC&&musGain)musGain.gain.setTargetAtTime(musOn?.62:0,AC.currentTime,.4)}}});
 
 document.getElementById('soloBtn').onclick=()=>start({});

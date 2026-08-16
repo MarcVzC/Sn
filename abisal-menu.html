@@ -279,7 +279,10 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  fondoSub:'Repintan toda la caverna durante la partida',
  owned:'EQUIPADA',equip:'EQUIPAR',have:'TIENES',free:'ANUNCIO',try24:'PROBAR',
  adLimit:'Sin anuncios por hoy',adFail:'El anuncio no se completó',
- adNoSdk:'Anuncios no disponibles. Abre desde Telegram',
+ adNoSdk:'Anuncios no disponibles ahora mismo',
+ adNotReady:'Anuncios no listos. Reintenta en un momento',
+ adNoTg:'Abre el juego desde el bot de Telegram',
+ gameSlow:'El motor tarda en responder. Reintentando...',
  adLoad:'Cargando anuncio...',adNone:'No hay anuncios ahora mismo',
  adBusy:'Inténtalo otra vez en un momento',
  adRestart:'Sesión demasiado larga. Cierra y vuelve a abrir',
@@ -326,7 +329,10 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  fondoSub:'They repaint the whole cavern during the run',
  owned:'EQUIPPED',equip:'EQUIP',have:'OWNED',free:'AD',try24:'TRY',
  adLimit:'No ads left today',adFail:'Ad not completed',
- adNoSdk:'Ads unavailable. Open from Telegram',
+ adNoSdk:'Ads unavailable right now',
+ adNotReady:'Ads not ready yet. Try again in a moment',
+ adNoTg:'Open the game from the Telegram bot',
+ gameSlow:'The engine is slow to respond. Retrying...',
  adLoad:'Loading ad...',adNone:'No ads available right now',
  adBusy:'Try again in a moment',
  adRestart:'Session too long. Close and reopen',
@@ -417,7 +423,9 @@ var FKC=[['Los Abisales',12,9840],['Nocturnos',9,7210],['Cuba Deep',15,6890],['V
 var BOARDS={hab:[],red:[],clan:[]};
 
 var x2Base=0;
-var revived=false,shopTab='cons',rankTab='hab',SESSION=null,gameReady=false;
+var revived=false,shopTab='cons',rankTab='hab',SESSION=null,gameReady=false,wantStart=false;
+// cnt = lo ya contabilizado de la partida en curso (los 'over' tras revivir son acumulativos)
+var cnt={any:false,pts:0,coins:0,kills:0,time:0,won:false};
 var LKEY='abisal_s_v1';
 var LFIELDS=['coins','stars','best','bestLen','bestTime','totalTime','totalPts','streak',
 'runs','kills','wins','netPts','inv','skin','skins','fondo','fondos','adsToday','tasks',
@@ -426,7 +434,17 @@ function saveLocal(){
   try{var o={};for(var i=0;i<LFIELDS.length;i++)o[LFIELDS[i]]=S[LFIELDS[i]];
     o.t=Date.now();localStorage.setItem(LKEY,JSON.stringify(o))}catch(e){}}
 function loadLocal(){
-  try{var r=localStorage.getItem(LKEY);if(!r)return null;return JSON.parse(r)}catch(e){return null}}
+  try{var r=localStorage.getItem(LKEY);if(!r)return null;
+    var o=JSON.parse(r);
+    return (o&&typeof o==='object'&&!Array.isArray(o))?o:null}catch(e){return null}}
+// escapa cualquier texto que venga del servidor o de localStorage antes de meterlo en HTML
+function esc(v){
+  return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+// numero seguro: descarta NaN/Infinity/negativos absurdos
+function num(v,def){
+  var n=Number(v);
+  return (isFinite(n)&&n>=0&&n<1e12)?n:(def||0)}
 function $(id){return document.getElementById(id)}
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove('on')},2200)}
@@ -439,18 +457,19 @@ function paidCount(red){return red?PAID_RED:PAID_HAB}
 
 function applyServer(r){
   if(!r)return;
-  if(typeof r.coins==='number')S.coins=r.coins;
+  if(typeof r.coins==='number')S.coins=num(r.coins,S.coins);
   if(r.inv)S.inv=r.inv;
   if(r.skins)S.skins=r.skins.slice(0);
   if(r.fondos)S.fondos=r.fondos.slice(0);
   if(r.skin)S.skin=r.skin;
   if(r.fondo)S.fondo=r.fondo;
   if(r.player){var p=r.player;
-    S.best=p.best_pts||S.best;S.totalPts=p.total_pts||S.totalPts;
-    S.bestLen=p.best_len||S.bestLen;S.runs=p.runs||S.runs;
-    S.kills=p.kills||S.kills;S.wins=p.wins||S.wins;
-    S.streak=p.streak||S.streak;S.netPts=p.net_pts||S.netPts;
-    if(typeof p.coins==='number')S.coins=p.coins}
+    // num() evita que un valor raro (NaN, negativo, absurdo) corrompa la UI
+    S.best=num(p.best_pts,S.best)||S.best;S.totalPts=num(p.total_pts,S.totalPts)||S.totalPts;
+    S.bestLen=num(p.best_len,S.bestLen)||S.bestLen;S.runs=num(p.runs,S.runs)||S.runs;
+    S.kills=num(p.kills,S.kills)||S.kills;S.wins=num(p.wins,S.wins)||S.wins;
+    S.streak=num(p.streak,S.streak)||S.streak;S.netPts=num(p.net_pts,S.netPts)||S.netPts;
+    if(typeof p.coins==='number')S.coins=num(p.coins,S.coins)}
   saveLocal();refresh()}
 function api(path,body){
   if(!CFG.API_BASE)return Promise.resolve(null);
@@ -470,10 +489,27 @@ function taskId(){
   return m?('task-'+m[1]):''}
 
 var AdCtl=null;
+// el SDK de AdsGram puede tardar en cargar; esperarlo antes de rendirse
+function adsSdkReady(){return !!(window.Adsgram&&typeof window.Adsgram.init==='function')}
+function inMiniApp(){try{return !!(TG&&TG.initData&&TG.initData.length>0)}catch(e){return false}}
+function waitAdsSdk(cb){
+  if(adsSdkReady())return cb(true);
+  var n=0,t=setInterval(function(){
+    if(adsSdkReady()){clearInterval(t);cb(true);return}
+    if(++n>=20){clearInterval(t);cb(false)}   // 20 x 250ms = ~5s
+  },250)}
 function showAd(ok){
-  if(!CFG.ADSGRAM_ENABLED||!window.Adsgram)return toast(L.adNoSdk);
+  // distinguir "ads apagados" / "SDK no listo" / "fuera de Mini App"
+  if(!CFG.ADSGRAM_ENABLED)return toast(L.adNoSdk);
   var id=rewardId();
   if(!id)return toast(L.adNoSdk);
+  if(adsSdkReady())return runAd(id,ok);
+  if(!inMiniApp())return toast(L.adNoTg);
+  toast(L.adLoad);
+  waitAdsSdk(function(ready){
+    if(!ready)return toast(L.adNotReady);
+    runAd(id,ok)})}
+function runAd(id,ok){
   try{
     if(!AdCtl){
       AdCtl=window.Adsgram.init({blockId:id});
@@ -501,32 +537,56 @@ function payStars(item,amount,ok){
       if(st==='paid'){ok();toast(L.paid)}else if(st==='failed')toast(L.payError)})})}
 
 var frame=$('frame');
+// el iframe es del mismo origen; solo se cae a '*' si la pagina se abre desde file://
+var FOR=(location.origin&&location.origin!=='null')?location.origin:'*';
+function toFrame(msg){
+  if(frame.contentWindow)frame.contentWindow.postMessage(msg,FOR)}
 function sendStart(){
-  if(!frame.contentWindow)return;
-  frame.contentWindow.postMessage({type:'abisal:start',
+  toFrame({type:'abisal:start',
     payload:{inv:S.inv,skin:S.skin,fondo:S.fondo,coins:0,
-     sfx:S.sfx,music:S.music,lang:S.lang,name:S.name}},'*')}
+     sfx:S.sfx,music:S.music,lang:S.lang,name:S.name}})}
 function play(){
   revived=false;bgOn=false;frame.classList.add('on');
-  // una sola orden de arranque: reenviar solo si el motor aun no confirmo
+  x2Base=0;                       // la base de monedas del motor arranca en 0 en cada partida
+  cnt={any:false,pts:0,coins:0,kills:0,time:0,won:false};
+  // el motor solo arranca cuando ha confirmado abisal:ready: si no, su canvas
+  // puede no tener tamano todavia y se veria la caverna en negro
   if(gameReady){sendStart();return}
+  wantStart=true;
   var n=0,t=setInterval(function(){
-    if(gameReady||n>=8){clearInterval(t);sendStart();return}
-    n++},200)}
+    if(gameReady){clearInterval(t);if(wantStart){wantStart=false;sendStart()}return}
+    if(++n>=25){                  // ~5s sin respuesta: aviso y recarga limpia del iframe
+      clearInterval(t);toast(L.gameSlow);
+      try{frame.contentWindow.location.reload()}catch(err){frame.src=frame.src}}
+  },200)}
+var MSGOK={'abisal:ready':1,'abisal:coins':1,'abisal:over':1};
 addEventListener('message',function(e){
-  var m=e.data||{};
-  if(m.type==='abisal:ready'){gameReady=true;return}
+  // solo mensajes del iframe del motor, del mismo origen y con forma conocida
+  if(e.source!==frame.contentWindow)return;
+  if(e.origin&&e.origin!=='null'&&e.origin!==location.origin)return;
+  var m=e.data;
+  if(!m||typeof m!=='object'||typeof m.type!=='string'||!MSGOK[m.type])return;
+  if(m.payload!=null&&typeof m.payload!=='object')return;
+  if(m.type==='abisal:ready'){gameReady=true;
+    if(wantStart){wantStart=false;sendStart()}   // arranque pendiente tras recargar el iframe
+    return}
   if(m.type==='abisal:coins'){
     var c=(m.payload&&m.payload.coins)||0;
     if(c>x2Base){S.coins+=(c-x2Base);x2Base=c;refresh();saveLocal()}
     return}
   if(m.type!=='abisal:over')return;
   var d=m.payload||{};
-  S.coins+=d.coins||0;S.runs++;S.kills+=d.kills||0;
-  S.totalPts+=d.pts||0;S.cyclePts+=d.pts||0;S.best=Math.max(S.best,d.pts||0);
+  // tras revivir llega un segundo 'over' con los totales de la MISMA partida:
+  // se contabiliza solo la diferencia para no duplicar puntos, monedas ni runs
+  S.coins+=Math.max(0,(d.coins||0)-cnt.coins);
+  if(!cnt.any)S.runs++;
+  S.kills+=Math.max(0,(d.kills||0)-cnt.kills);
+  var dPts=Math.max(0,(d.pts||0)-cnt.pts);
+  S.totalPts+=dPts;S.cyclePts+=dPts;S.best=Math.max(S.best,d.pts||0);
   S.bestLen=Math.max(S.bestLen,d.len||0);
-  S.bestTime=Math.max(S.bestTime,d.time||0);S.totalTime+=(d.time||0);
-  if(d.inv)S.inv=d.inv;if(d.won)S.wins++;
+  S.bestTime=Math.max(S.bestTime,d.time||0);
+  S.totalTime+=Math.max(0,(d.time||0)-cnt.time);
+  if(d.inv)S.inv=d.inv;if(d.won&&!cnt.won)S.wins++;
   if(d.nemesis){S.nemesis=d.nemesis;S.nemCnt=d.nemCnt}
   $('oPts').textContent=d.pts||0;$('oPtsL').textContent=L.pts;
   $('oLen').textContent=d.len||0;$('oLvl').textContent=d.lvl||1;
@@ -540,16 +600,39 @@ addEventListener('message',function(e){
   $('oBX2').style.display=d.canX2?'block':'none';
   $('oBRev').style.display=(d.canRevive&&!revived)?'block':'none';
   $('over').classList.add('on');refresh();
-  missionProgress(d);
-  var run={pts:d.pts||0,len:d.len||0,lvl:d.lvl||1,secs:d.time||0,
+  missionProgress(d,cnt.any);
+  cnt={any:true,pts:d.pts||0,coins:d.coins||0,kills:d.kills||0,time:d.time||0,won:!!d.won};
+  x2Base=d.coins||0;   // ya acreditadas: del 'abisal:coins' del x2 solo se suma el extra
+  // no enviar el run todavia: el usuario aun puede hacer x2 o revivir
+  pendingRun={pts:d.pts||0,len:d.len||0,lvl:d.lvl||1,secs:d.time||0,
     kills:d.kills||0,inv:S.inv};
+  armPendTimer();
+  saveLocal()});
+
+// envio diferido del run (tras x2 / volver al menu / jugar otra vez / timeout)
+var pendingRun=null,pendTimer=null;
+function armPendTimer(){
+  if(pendTimer)clearTimeout(pendTimer);
+  pendTimer=setTimeout(function(){sendPendingRun()},100000)} // red de seguridad ~100s
+function clearPendingRun(){
+  if(pendTimer){clearTimeout(pendTimer);pendTimer=null}
+  pendingRun=null}
+function sendPendingRun(){
+  if(pendTimer){clearTimeout(pendTimer);pendTimer=null}
+  var run=pendingRun;pendingRun=null;
+  if(!run)return;
+  run.inv=S.inv;
   if(SESSION){run.session=SESSION;SESSION=null;
     api('run',run).then(function(r){
       if(!r){pushPend(run);return}
       if(r.ok===false){toast(L.runReject);return}
       applyServer(r)})}
-  else pushPend(run);
-  saveLocal()});
+  else pushPend(run)}
+// si el usuario sale de la app con el overlay abierto, no se pierde la partida
+addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='hidden'&&pendingRun)sendPendingRun()});
+addEventListener('pagehide',function(){
+  if(pendingRun){pushPend(pendingRun);clearPendingRun()}});
 function pushPend(r){
   if(!S.pendRuns)S.pendRuns=[];
   if(S.pendRuns.length<20)S.pendRuns.push(r);saveLocal()}
@@ -566,20 +649,28 @@ function flushPend(){
 function startRun(){api('session').then(function(r){
   if(r&&r.session)SESSION=r.session;play()})}
 $('bPlay').onclick=startRun;
-$('oAgain').onclick=function(){$('over').classList.remove('on');startRun()};
+$('oAgain').onclick=function(){$('over').classList.remove('on');
+  sendPendingRun();            // cerrar la partida anterior antes de pedir nueva sesion
+  startRun()};
 $('oMenu').onclick=function(){bgOn=true;$('over').classList.remove('on');
   frame.classList.remove('on');
-  if(frame.contentWindow)frame.contentWindow.postMessage({type:'abisal:stop'},'*')};
+  sendPendingRun();
+  toFrame({type:'abisal:stop'})};
 $('oBRev').onclick=function(){showAd(function(){revived=true;
+  clearPendingRun();           // al revivir no se envia la muerte: se espera al over final
   $('over').classList.remove('on');
-  frame.contentWindow.postMessage({type:'abisal:revive'},'*')})};
+  toFrame({type:'abisal:revive'})})};
 $('oBX2').onclick=function(){showAd(function(){
-  x2Base=0;
-  frame.contentWindow.postMessage({type:'abisal:x2'},'*');
+  toFrame({type:'abisal:x2'});
   var cur=parseInt($('oPts').textContent,10)||0;
-  $('oBX2').style.display='none';$('oX2').style.display='block';$('oX2').textContent=L.x2on;
+  $('oBX2').style.display='none';$('oBRev').style.display='none';
+  $('oX2').style.display='block';$('oX2').textContent=L.x2on;
   $('oPts').textContent=cur*2;S.totalPts+=cur;S.cyclePts+=cur;S.best=Math.max(S.best,cur*2);
-  refresh();saveLocal()})};
+  refresh();saveLocal();
+  // el run se envia ya con los puntos doblados
+  cnt.pts=cur*2;
+  if(pendingRun)pendingRun.pts=cur*2;
+  sendPendingRun()})};
 
 var PAGES=['pHome','pShop','pTasks','pRank','pFriends','pProfile','pSet'];
 function goto(id,btn){
@@ -741,9 +832,9 @@ function taskState(id){
   if(!t||t.day!==today()){t={day:today(),st:0};S.tasks[id]=t}
   return t}
 // se llama al terminar cada partida
-function missionProgress(d){
+function missionProgress(d,same){
   var p=mp();
-  p.runs+=1;
+  if(!same)p.runs+=1;          // 'same' = mismo run tras revivir: no cuenta como partida nueva
   p.len=Math.max(p.len,d.len||0);
   p.kills=Math.max(p.kills,d.kills||0);
   p.time=Math.max(p.time,d.time||0);
@@ -820,11 +911,11 @@ function drawRank(){
       var mem='';
       for(i=0;i<(mine.members||[]).length;i++)
         mem+='<div class="row"><div class="rk">'+(i+1)+'</div>'+
-          '<div class="nm">'+mine.members[i].n+'</div>'+
-          '<div class="sc">'+mine.members[i].pts+'</div></div>';
+          '<div class="nm">'+esc(mine.members[i].n)+'</div>'+
+          '<div class="sc">'+num(mine.members[i].pts)+'</div></div>';
       head='<div class="pot" style="background:linear-gradient(135deg,rgba(198,255,74,.12),'+
         'rgba(91,233,255,.09));border-color:rgba(198,255,74,.3)">'+
-        '<div class="amt" style="color:var(--lime);font-size:22px">'+mine.name+'</div>'+
+        '<div class="amt" style="color:var(--lime);font-size:22px">'+esc(mine.name)+'</div>'+
         '<div class="lb">'+(mine.members||[]).length+' '+L.members+
         ' · '+(mine.week_pts||0)+' '+L.clanPts+'</div></div>'+
         '<div class="rows" style="margin-bottom:12px">'+mem+'</div>'+
@@ -837,9 +928,9 @@ function drawRank(){
     for(i=0;i<CL.length;i++){
       var mn=mine&&mine.name===CL[i][0];
       h+='<div class="row'+(mn?' me':'')+'"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
-      '<div class="tx"><b>'+CL[i][0]+'</b><i>'+CL[i][1]+'/30 '+L.members+'</i></div>'+
-      '<div class="sc">'+CL[i][2]+'</div>'+
-      (!mine&&CL[i][3]&&CL[i][1]<30?'<button class="go" data-cj="'+CL[i][3]+'">'+
+      '<div class="tx"><b>'+esc(CL[i][0])+'</b><i>'+num(CL[i][1])+'/30 '+L.members+'</i></div>'+
+      '<div class="sc">'+num(CL[i][2])+'</div>'+
+      (!mine&&CL[i][3]&&CL[i][1]<30?'<button class="go" data-cj="'+esc(CL[i][3])+'">'+
         L.join+'</button>':'')+'</div>'}
     $('rankBody').innerHTML='<div class="psub">'+L.clanSub+'</div>'+head+
       '<div class="psub" style="margin:14px 0 8px">'+L.clanTop+'</div>'+
@@ -848,7 +939,7 @@ function drawRank(){
     if($('clanNew'))$('clanNew').onclick=function(){
       if(S.coins<PR.clanCreate)return toast(L.noCoins);
       var n=prompt(L.clanName,'');if(!n||!n.trim())return;
-      var nm2=n.trim().slice(0,18);
+      var nm2=n.trim().slice(0,18).replace(/[<>]/g,'');   // mismo filtro que el rename de usuario
       api('buy',{item:'clan',name:nm2}).then(function(r){
         if(!r||r.error)return toast(r&&r.error==='clan existe'?L.clanTaken:L.saveFail);
         applyServer(r);S.clan=nm2;saveLocal();toast(L.clanMade);loadState()})};
@@ -867,13 +958,13 @@ function drawRank(){
   var mine=red?S.netPts:S.cyclePts;
   for(i=0;i<list.length;i++)
     h+='<div class="row"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
-    '<div class="nm">'+list[i][0]+'</div><div class="sc">'+list[i][1]+'</div>'+
+    '<div class="nm">'+esc(list[i][0])+'</div><div class="sc">'+num(list[i][1])+'</div>'+
     '<div class="pz">'+prizeTxt(i,red)+'</div></div>';
   var pos=1;for(i=0;i<list.length;i++)if(list[i][1]>mine)pos++;
   if(!red&&S.place>0)pos=S.place;
   $('rankBody').innerHTML='<div class="psub">'+(red?L.redSub(PAID_RED):L.habSub(PAID_HAB))+'</div>'+
     pot+'<div class="rows">'+h+'<div class="row me"><div class="rk">'+pos+'</div>'+
-    '<div class="nm">'+S.name+'</div><div class="sc">'+mine+'</div>'+
+    '<div class="nm">'+esc(S.name)+'</div><div class="sc">'+mine+'</div>'+
     '<div class="pz">'+(pos<=paidCount(red)?prizeTxt(pos-1,red):'—')+'</div></div></div>'}
 
 function drawProfile(){
@@ -890,7 +981,7 @@ function drawProfile(){
     h+='<div class="stat"><div class="v">'+a[i][0]+'</div><div class="k">'+a[i][1]+'</div></div>';
   $('profStats').innerHTML=h;
   $('profExtra').innerHTML=S.nemesis?'<div class="row"><div class="nm">'+L.nemesis+
-    ': <b style="color:#FF5C7A">'+S.nemesis+'</b></div><div class="sc">'+S.nemCnt+'</div></div>':''}
+    ': <b style="color:#FF5C7A">'+esc(S.nemesis)+'</b></div><div class="sc">'+num(S.nemCnt)+'</div></div>':''}
 
 function myLink(){
   var bot=(CFG.BOT_USER||'AbisalGameBot').replace('@','');
@@ -906,9 +997,9 @@ function drawFriends(){
   var body='';
   if(S.frOpen){
     if(S.friends.length){for(var i=0;i<S.friends.length;i++)
-      body+='<div class="row"><div class="tx"><b>@'+S.friends[i].n+'</b><i>'+
-        (S.friends[i].runs||0)+' '+L.runsShort+'</i></div><div class="sc">+'+
-        S.friends[i].p+'</div></div>'}
+      body+='<div class="row"><div class="tx"><b>@'+esc(S.friends[i].n)+'</b><i>'+
+        num(S.friends[i].runs)+' '+L.runsShort+'</i></div><div class="sc">+'+
+        num(S.friends[i].p)+'</div></div>'}
     else body='<div class="row"><div class="nm" style="color:var(--mute)">'+L.frNone+'</div></div>'}
   $('frList').innerHTML=head+body;
   $('frHead').onclick=function(){S.frOpen=!S.frOpen;drawFriends()};
@@ -924,12 +1015,12 @@ $('bInvite').onclick=function(){
     '&text='+encodeURIComponent(L.shareTxt);
   if(TG&&TG.openTelegramLink)TG.openTelegramLink(u);else window.open(u,'_blank')};
 
-function pushSettings(){if(frame.contentWindow)frame.contentWindow.postMessage(
-  {type:'abisal:settings',payload:{sfx:S.sfx,music:S.music,lang:S.lang}},'*')}
+function pushSettings(){toFrame(
+  {type:'abisal:settings',payload:{sfx:S.sfx,music:S.music,lang:S.lang}})}
 function drawSet(){
   $('hSet').textContent=L.settings;
   $('setBody').innerHTML=
-   '<div class="row"><div class="tx"><b>'+L.username+'</b><i>'+S.name+'</i></div>'+
+   '<div class="row"><div class="tx"><b>'+L.username+'</b><i>'+esc(S.name)+'</i></div>'+
    '<button class="go" id="sName">'+L.change+' · '+L.free+'</button></div>'+
    '<div class="row"><div class="tx"><b>'+L.language+'</b><i>'+
      (S.lang==='es'?'Español':'English')+'</i></div>'+
@@ -968,8 +1059,13 @@ function applyLang(){
 function initLocal(){
   var o=loadLocal();if(!o)return;
   for(var i=0;i<LFIELDS.length;i++){
-    var k=LFIELDS[i];
-    if(o[k]!==undefined&&o[k]!==null)S[k]=o[k]}
+    var k=LFIELDS[i],v=o[k];
+    if(v===undefined||v===null)continue;
+    // datos corruptos no deben tumbar la UI: cada campo debe conservar su tipo
+    if(typeof S[k]==='number'){S[k]=num(v,S[k]);continue}
+    if(typeof S[k]==='boolean'){if(typeof v==='boolean')S[k]=v;continue}
+    if(Array.isArray(S[k])){if(Array.isArray(v))S[k]=v;continue}
+    S[k]=v}
   if(S.adsDay!==today()){S.adsDay=today();S.adsToday=0}
   refresh()}
 var MAXF=['coins','stars','best','bestLen','bestTime','totalTime','totalPts',
