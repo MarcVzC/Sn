@@ -144,7 +144,9 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
 .over .st div{text-align:center}
 .over .st b{display:block;font:700 17px JetBrains Mono,monospace;color:var(--lime)}
 .over .st span{font:500 8px Outfit;letter-spacing:.13em;text-transform:uppercase;opacity:.45}
-.over button#oAgain{padding:18px;font-size:17px;margin-top:10px}
+.over button#oAgain{padding:17px;font-size:16px;margin-top:12px;margin-bottom:2px}
+.over button.ad{padding:12px;font-size:13px}
+.over button.gh{padding:11px;font-size:12px;opacity:.85}
 .over button{width:min(300px,84vw);padding:14px;border:0;border-radius:15px;margin-top:7px;
   font:700 14px Chakra Petch;letter-spacing:.12em;color:#0A1220;
   background:linear-gradient(96deg,var(--lime),var(--cyan))}
@@ -152,6 +154,20 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
 .chip.lv{background:rgba(198,255,74,.12);color:var(--lime);cursor:pointer;position:relative}
 .chip.lv .lvb{position:absolute;left:6px;right:6px;bottom:3px;height:2px;background:rgba(255,255,255,.15);border-radius:2px;overflow:hidden}
 .chip.lv .lvb span{display:block;height:100%;background:var(--lime)}
+.rows .row .go.kick{background:rgba(255,92,122,.15);color:#FF5C7A;border:0;padding:4px 9px;
+  border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;margin-left:6px}
+.mypos{display:flex;align-items:center;gap:10px;margin:10px 0 6px;padding:12px 14px;
+  border-radius:14px;background:linear-gradient(96deg,rgba(255,196,74,.16),rgba(91,233,255,.10));
+  border:1px solid rgba(255,196,74,.35)}
+.mypos .mp1{font-size:10px;letter-spacing:1px;opacity:.7}
+.mypos .mp2{font-size:24px;font-weight:800;color:var(--gold);margin-left:auto}
+.mypos .mp3{font-size:12px;opacity:.85;width:100%;flex-basis:100%;margin-top:-2px}
+.rows .row.pod{background:rgba(255,196,74,.06)}
+.rows .row.pod .rk{font-size:17px}
+.rows .row.me{background:rgba(91,233,255,.14);border:1px solid rgba(91,233,255,.45);border-radius:12px}
+.rows .row.me.out{margin-top:8px;border-style:dashed}
+.rows .row .tu{font-size:9px;font-weight:800;letter-spacing:1px;color:var(--cy);
+  background:rgba(91,233,255,.18);padding:2px 6px;border-radius:6px;margin-left:5px;vertical-align:middle}
 .dbtn{margin-top:10px;width:min(300px,84vw);padding:12px;border:0;border-radius:14px;
   background:linear-gradient(96deg,var(--gold),#FF7A4D);color:#20120A;font-weight:800;font-size:14px;cursor:pointer}
 .dbtn.got{background:rgba(255,255,255,.08);color:var(--ink);opacity:.6}
@@ -288,12 +304,12 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
   </div>
   <div class="orank" id="oRank"></div>
   <div class="onear" id="oNear"></div>
-  <div class="otip" id="oTip"></div>
-  <button class="gh" id="oShare" style="display:none"></button>
+  <button id="oAgain"></button>
   <button class="ad" id="oBX2"></button>
   <button class="ad" id="oBRev"></button>
-  <button id="oAgain"></button>
+  <button class="gh" id="oShare" style="display:none"></button>
   <button class="gh" id="oMenu"></button>
+  <div class="otip" id="oTip"></div>
 </div>
 
 <script>
@@ -318,6 +334,11 @@ var LG=(function(){
 var DICT={
 es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore:'Mejor puntuación',
  play:'JUGAR',streak:function(n){return 'Racha de <b>'+n+'</b> día'+(n>1?'s':'')},
+ rkYou:'TÚ',rkYourPos:'TU PUESTO',
+ clanAddBtn:'➕ AÑADIR MIEMBRO',clanAddAsk:'Escribe el @usuario de Telegram a añadir:',
+ kickAsk:'¿Seguro que quieres sacarlo del clan?',kicked:'Expulsado',added:'Añadido al clan',
+ notFound:'No existe ese usuario o aún no ha jugado',hasClan:'Ya pertenece a otro clan',
+ clanFull:'El clan está lleno',onlyOwner:'Solo el creador del clan puede hacer eso',
  dReward:'🎁 RECOMPENSA DIARIA',dTitle:'Recompensa diaria',
  dSub:'Vuelve cada día: la recompensa sube. Si faltas un día bajas un escalón, no vuelves a cero.',
  dClaim:'RECLAMAR',dGot:'Reclamado hoy · vuelve mañana',dDay:'Día',
@@ -391,6 +412,11 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  bought:function(n){return n+' comprado'},equipped:function(n){return n+' equipada'}},
 en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'Best score',
  play:'PLAY',streak:function(n){return '<b>'+n+'</b> day streak'},
+ rkYou:'YOU',rkYourPos:'YOUR RANK',
+ clanAddBtn:'➕ ADD MEMBER',clanAddAsk:'Type the Telegram @username to add:',
+ kickAsk:'Remove this member from the clan?',kicked:'Removed',added:'Added to the clan',
+ notFound:'No such user, or they have not played yet',hasClan:'Already in another clan',
+ clanFull:'The clan is full',onlyOwner:'Only the clan owner can do that',
  dReward:'🎁 DAILY REWARD',dTitle:'Daily reward',
  dSub:'Come back every day: the reward grows. Miss a day and you drop one step, not to zero.',
  dClaim:'CLAIM',dGot:'Claimed today · come back tomorrow',dDay:'Day',
@@ -1092,17 +1118,24 @@ function drawRank(){
     var mine=S.myClan;
     var head='';
     if(mine){
-      var mem='';
-      for(i=0;i<(mine.members||[]).length;i++)
-        mem+='<div class="row"><div class="rk">'+(i+1)+'</div>'+
-          '<div class="nm">'+esc(mine.members[i].n)+'</div>'+
-          '<div class="sc">'+num(mine.members[i].pts)+'</div></div>';
+      var mem='',soyDueno=(mine.owner&&TGU&&mine.owner===TGU.id);
+      for(i=0;i<(mine.members||[]).length;i++){
+        var mb=mine.members[i],esYo=(TGU&&mb.id===TGU.id);
+        mem+='<div class="row'+(esYo?' me':'')+'"><div class="rk">'+(i+1)+'</div>'+
+          '<div class="nm">'+esc(mb.n)+(esYo?' <span class="tu">'+L.rkYou+'</span>':'')+
+          (mine.owner&&mb.id===mine.owner?' 👑':'')+'</div>'+
+          '<div class="sc">'+num(mb.pts)+'</div>'+
+          // solo el dueño puede echar, y nunca a sí mismo
+          (soyDueno&&!esYo?'<button class="go kick" data-kick="'+mb.id+'">✕</button>':'')+
+          '</div>';
+      }
       head='<div class="pot" style="background:linear-gradient(135deg,rgba(198,255,74,.12),'+
         'rgba(91,233,255,.09));border-color:rgba(198,255,74,.3)">'+
         '<div class="amt" style="color:var(--lime);font-size:22px">'+esc(mine.name)+'</div>'+
         '<div class="lb">'+(mine.members||[]).length+' '+L.members+
         ' · '+(mine.week_pts||0)+' '+L.clanPts+'</div></div>'+
         '<div class="rows" style="margin-bottom:12px">'+mem+'</div>'+
+        (soyDueno?'<button class="cta" id="clanAdd">'+L.clanAddBtn+'</button>':'')+
         '<button class="cta gh" id="clanLeave">'+L.leave+'</button>';
     }else{
       head='<div class="row"><div class="tx"><b>'+L.noClan+'</b><i>'+
@@ -1127,6 +1160,28 @@ function drawRank(){
       api('buy',{item:'clan',name:nm2}).then(function(r){
         if(!r||r.error)return toast(r&&r.error==='clan existe'?L.clanTaken:L.saveFail);
         applyServer(r);S.clan=nm2;saveLocal();toast(L.clanMade);loadState()})};
+    // expulsar: confirma y avisa al expulsado por el bot
+    var kb=document.querySelectorAll('[data-kick]');
+    for(var kk=0;kk<kb.length;kk++)(function(btn){
+      btn.onclick=function(){
+        var id=btn.dataset.kick;
+        if(!confirm(L.kickAsk))return;
+        btn.disabled=true;
+        api('equip',{clanKick:id}).then(function(r){
+          if(!r||r.error)return toast(r&&r.error==='solo el dueño'?L.onlyOwner:L.saveFail);
+          toast(L.kicked);loadState()})};
+    })(kb[kk]);
+    if($('clanAdd'))$('clanAdd').onclick=function(){
+      var u=prompt(L.clanAddAsk,'@');
+      if(!u||!u.trim())return;
+      api('equip',{clanAdd:u.trim()}).then(function(r){
+        if(!r||r.error){
+          var e=r&&r.error;
+          return toast(e==='no encontrado'?L.notFound:
+                       e==='ya tiene clan'?L.hasClan:
+                       e==='clan lleno'?L.clanFull:
+                       e==='solo el dueño'?L.onlyOwner:L.saveFail)}
+        toast(L.added);loadState()})};
     if($('clanLeave'))$('clanLeave').onclick=function(){
       api('equip',{clanLeave:1}).then(function(r){
         if(!r||r.error)return toast(L.saveFail);
@@ -1140,16 +1195,29 @@ function drawRank(){
   var red=rankTab==='red';
   var list=red?(BOARDS.red.length?BOARDS.red:FKR):(BOARDS.hab.length?BOARDS.hab:FK);
   var mine=red?S.netPts:S.cyclePts;
-  for(i=0;i<list.length;i++)
-    h+='<div class="row"><div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i+1)+'</div>'+
-    '<div class="nm">'+esc(list[i][0])+'</div><div class="sc">'+num(list[i][1])+'</div>'+
-    '<div class="pz">'+prizeTxt(i,red)+'</div></div>';
   var pos=1;for(i=0;i<list.length;i++)if(list[i][1]>mine)pos++;
   if(!list.length&&!red&&S.place>0)pos=S.place;   // sin tabla aun, vale la del servidor
+  var dentro=pos<=list.length,MED=['🥇','🥈','🥉'];
+  for(i=0;i<list.length;i++){
+    var yo=dentro&&(i+1)===pos;                   // tu fila resaltada EN SU SITIO real
+    h+='<div class="row'+(yo?' me':'')+(i<3?' pod':'')+'">'+
+      '<div class="rk '+(i<3?'p'+(i+1):'')+'">'+(i<3?MED[i]:(i+1))+'</div>'+
+      '<div class="nm">'+esc(yo?S.name:list[i][0])+(yo?' <span class="tu">'+L.rkYou+'</span>':'')+'</div>'+
+      '<div class="sc">'+num(yo?mine:list[i][1])+'</div>'+
+      '<div class="pz">'+prizeTxt(i,red)+'</div></div>';
+  }
+  // la fila de abajo solo aparece si NO estas entre los visibles, con tu puesto real
+  if(!dentro)
+    h+='<div class="row me out"><div class="rk">'+pos+'</div>'+
+      '<div class="nm">'+esc(S.name)+' <span class="tu">'+L.rkYou+'</span></div>'+
+      '<div class="sc">'+num(mine)+'</div>'+
+      '<div class="pz">'+(pos<=paidCount(red)?prizeTxt(pos-1,red):'—')+'</div></div>';
+  var premio=pos<=paidCount(red)?prizeTxt(pos-1,red):'';
+  var cab='<div class="mypos"><div class="mp1">'+L.rkYourPos+'</div>'+
+    '<div class="mp2">#'+pos+'</div>'+
+    '<div class="mp3">'+num(mine)+' pts'+(premio?' · <b>'+premio+'</b>':'')+'</div></div>';
   $('rankBody').innerHTML='<div class="psub">'+(red?L.redSub(PAID_RED):L.habSub(PAID_HAB))+'</div>'+
-    pot+'<div class="rows">'+h+'<div class="row me"><div class="rk">'+pos+'</div>'+
-    '<div class="nm">'+esc(S.name)+'</div><div class="sc">'+mine+'</div>'+
-    '<div class="pz">'+(pos<=paidCount(red)?prizeTxt(pos-1,red):'—')+'</div></div></div>'}
+    pot+cab+'<div class="rows">'+h+'</div>'}
 
 // escalon creciente: los primeros niveles caen rapido para enganchar,
 // luego cuestan mas. 800, 1800, 3000, 4400... (base 800 + 200 por nivel)
@@ -1286,10 +1354,22 @@ function drawSet(){
       api('ad',{kind:'rename'});api('equip',{name:nm});saveLocal();
       refresh();drawSet();drawRank()})};
   $('sLang').onclick=function(){S.lang=S.lang==='es'?'en':'es';L=DICT[S.lang];LG=S.lang;
-    api('equip',{lang:S.lang});saveLocal();applyLang();drawSet()};
+    api('equip',{lang:S.lang});saveLocal();applyLang();pushSettings();repintaTodo();drawSet()};
   $('sSfx').onclick=function(){S.sfx=!S.sfx;pushSettings();saveLocal();drawSet()};
   $('sMus').onclick=function(){S.music=!S.music;pushSettings();saveLocal();drawSet()}}
 
+// cambiar L no basta: el HTML ya dibujado se queda con el idioma anterior
+function repintaTodo(){
+  try{
+    refresh();
+    var vis='pHome',i;
+    for(i=0;i<PAGES.length;i++)if($(PAGES[i]).classList.contains('on'))vis=PAGES[i];
+    if(vis==='pShop')drawShop(); else if(vis==='pTasks')drawTasks();
+    else if(vis==='pRank')drawRank(); else if(vis==='pFriends')drawFriends();
+    else if(vis==='pProfile')drawProfile(); else if(vis==='pSet')drawSet();
+    else if(vis==='pDaily')drawDaily();
+  }catch(e){}
+}
 function applyLang(){
   var n=document.querySelectorAll('[data-l]');
   for(var i=0;i<n.length;i++)n[i].textContent=L.nav[parseInt(n[i].dataset.l,10)];
@@ -1336,7 +1416,7 @@ function loadState(){
     // idioma unico para bot, menu y juego: el de la ficha del servidor
     if(p.lang&&(p.lang==='es'||p.lang==='en')&&p.lang!==S.lang){
       S.lang=p.lang;L=DICT[S.lang];LG=S.lang;
-      applyLang();pushSettings();
+      saveLocal();applyLang();pushSettings();repintaTodo();
     }
     S.skin=p.skin||S.skin;S.fondo=p.fondo||S.fondo;
     var ss=p.skins||[],ff=p.fondos||[];
