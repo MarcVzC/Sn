@@ -176,8 +176,10 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
 .over .orank{font-size:13px;color:var(--ink);opacity:.9;margin:6px 0 2px;text-align:center}
 .over .orank b{color:var(--gold)}
 .over .onear{font-size:12px;color:var(--lime);margin-bottom:4px;text-align:center;min-height:14px}
-.over .otip{font-size:12px;line-height:1.45;color:var(--ink);opacity:.75;margin:8px 4px 10px;
-  text-align:center;border-top:1px solid var(--line);padding-top:8px}
+.over .otip{font-size:11px;line-height:1.35;color:var(--ink);opacity:.6;margin:6px 6px 8px;
+  text-align:center;border-top:1px solid var(--line);padding-top:6px}
+.over .otip:empty{display:none;border:0;margin:0;padding:0}
+.over .onear:empty{display:none}
 .over button.gh{background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--line)}
 </style>
 </head>
@@ -719,9 +721,11 @@ function puestoEstimado(pts){
   return {pos:mejores+1,total:Math.max(tabla.length,mejores+1),corte:corte};
 }
 function consejoFin(d){
-  // uno solo, y relacionado con como murio. Nada de muros de texto.
+  // uno solo, corto, y solo cuando aporta: en partidas largas y con bajas el
+  // jugador ya sabe jugar y el texto solo satura la pantalla.
   var t=L.tips||[];
   if(!t.length)return '';
+  if((d.time||0)>=90&&(d.kills||0)>=1)return '';
   var i;
   if((d.time||0)<20)      i=0;                       // murio pronto: como se mata
   else if(!d.kills)       i=7;                       // sin bajas: valen 60 pts
@@ -746,7 +750,7 @@ function pintaFin(d,recAntes){
   var nr=$('oNear');
   if(pts>recAntes&&recAntes>0)      nr.innerHTML='🏅 '+L.nearNew;
   else if(recAntes-pts>0&&recAntes-pts<=Math.max(40,recAntes*0.15))
-    nr.innerHTML=L.nearFalt+' <b>'+(recAntes-pts)+'</b> · '+L.nearRec+' '+recAntes;
+    nr.innerHTML=L.nearFalt+' <b>'+(recAntes-pts)+'</b>';
   else nr.innerHTML='';
   // consejo
   $('oTip').innerHTML=consejoFin(d);
@@ -756,7 +760,9 @@ function pintaFin(d,recAntes){
 // alguien le apetece hacerlo. Escondido en un menu no lo usa nadie.
 function pintaShare(d,recAntes){
   var b=$('oShare'),pts=d.pts||0;
-  var vale=pts>=recAntes||pts>=200||(d.kills||0)>=1;   // record, buena puntuacion o alguna baja
+  // solo cuando hay algo de lo que presumir de verdad: si sale siempre,
+  // la pantalla se satura y el boton pierde valor
+  var vale=(pts>recAntes&&recAntes>0)||pts>=300;
   b.style.display=vale?'block':'none';
   if(!vale)return;
   b.textContent=L.share;
@@ -1139,7 +1145,7 @@ function drawRank(){
     '<div class="nm">'+esc(list[i][0])+'</div><div class="sc">'+num(list[i][1])+'</div>'+
     '<div class="pz">'+prizeTxt(i,red)+'</div></div>';
   var pos=1;for(i=0;i<list.length;i++)if(list[i][1]>mine)pos++;
-  if(!red&&S.place>0)pos=S.place;
+  if(!list.length&&!red&&S.place>0)pos=S.place;   // sin tabla aun, vale la del servidor
   $('rankBody').innerHTML='<div class="psub">'+(red?L.redSub(PAID_RED):L.habSub(PAID_HAB))+'</div>'+
     pot+'<div class="rows">'+h+'<div class="row me"><div class="rk">'+pos+'</div>'+
     '<div class="nm">'+esc(S.name)+'</div><div class="sc">'+mine+'</div>'+
@@ -1327,6 +1333,11 @@ function loadState(){
     S.cyclePts=Math.max(S.cyclePts||0,p.cycle_pts||0);
     // el estado de la recompensa diaria manda el servidor, no el local
     S.dailyDay=sv.dailyDay;S.dailyN=sv.dailyN;
+    // idioma unico para bot, menu y juego: el de la ficha del servidor
+    if(p.lang&&(p.lang==='es'||p.lang==='en')&&p.lang!==S.lang){
+      S.lang=p.lang;L=DICT[S.lang];LG=S.lang;
+      applyLang();pushSettings();
+    }
     S.skin=p.skin||S.skin;S.fondo=p.fondo||S.fondo;
     var ss=p.skins||[],ff=p.fondos||[];
     for(var a=0;a<ss.length;a++)addOwn(S.skins,ss[a]);
