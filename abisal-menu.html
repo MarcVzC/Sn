@@ -144,10 +144,40 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
 .over .st div{text-align:center}
 .over .st b{display:block;font:700 17px JetBrains Mono,monospace;color:var(--lime)}
 .over .st span{font:500 8px Outfit;letter-spacing:.13em;text-transform:uppercase;opacity:.45}
+.over button#oAgain{padding:18px;font-size:17px;margin-top:10px}
 .over button{width:min(300px,84vw);padding:14px;border:0;border-radius:15px;margin-top:7px;
   font:700 14px Chakra Petch;letter-spacing:.12em;color:#0A1220;
   background:linear-gradient(96deg,var(--lime),var(--cyan))}
 .over button.ad{background:linear-gradient(96deg,var(--gold),#FF7A4D);color:#20120A}
+.chip.lv{background:rgba(198,255,74,.12);color:var(--lime);cursor:pointer;position:relative}
+.chip.lv .lvb{position:absolute;left:6px;right:6px;bottom:3px;height:2px;background:rgba(255,255,255,.15);border-radius:2px;overflow:hidden}
+.chip.lv .lvb span{display:block;height:100%;background:var(--lime)}
+.dbtn{margin-top:10px;width:min(300px,84vw);padding:12px;border:0;border-radius:14px;
+  background:linear-gradient(96deg,var(--gold),#FF7A4D);color:#20120A;font-weight:800;font-size:14px;cursor:pointer}
+.dbtn.got{background:rgba(255,255,255,.08);color:var(--ink);opacity:.6}
+.dgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 4px}
+.dcell{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:12px;
+  padding:10px 4px;text-align:center}
+.dcell .dd{font-size:10px;opacity:.6}
+.dcell .dv{font-size:15px;font-weight:800;color:var(--gold);margin-top:3px}
+.dcell.done{background:rgba(198,255,74,.10);border-color:var(--lime)}
+.dcell.done .dv{color:var(--lime)}
+.dcell.now{border-color:var(--gold);box-shadow:0 0 0 2px rgba(255,196,74,.25)}
+.dcell.big{grid-column:span 4}
+.dclaim{width:min(300px,84vw);padding:16px;border:0;border-radius:15px;margin:6px auto;display:block;
+  background:linear-gradient(96deg,var(--gold),#FF7A4D);color:#20120A;font-weight:800;font-size:16px;cursor:pointer}
+.dclaim:disabled{background:rgba(255,255,255,.08);color:var(--ink);opacity:.5}
+.dnote{font-size:12px;opacity:.7;text-align:center;margin:8px 12px}
+#pLvlBar{height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin:8px 0 4px;overflow:hidden}
+#pLvlBar span{display:block;height:100%;background:linear-gradient(90deg,var(--lime),var(--gold));border-radius:4px}
+#pLvlTxt{font-size:11px;opacity:.7;text-align:center;margin-bottom:6px}
+#taskList .mbar{height:4px;background:rgba(255,255,255,.08);border-radius:3px;margin-top:5px;overflow:hidden}
+#taskList .mbar span{display:block;height:100%;background:linear-gradient(90deg,var(--lime),var(--gold));border-radius:3px}
+.over .orank{font-size:13px;color:var(--ink);opacity:.9;margin:6px 0 2px;text-align:center}
+.over .orank b{color:var(--gold)}
+.over .onear{font-size:12px;color:var(--lime);margin-bottom:4px;text-align:center;min-height:14px}
+.over .otip{font-size:12px;line-height:1.45;color:var(--ink);opacity:.75;margin:8px 4px 10px;
+  text-align:center;border-top:1px solid var(--line);padding-top:8px}
 .over button.gh{background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--line)}
 </style>
 </head>
@@ -157,6 +187,7 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
 
 <div class="page on" id="pHome">
   <div class="top">
+    <div class="chip lv" id="cLvlChip">⬢ <span id="cLvl">1</span></div>
     <div class="chip g">◈ <span id="cCoins">0</span></div>
     <div class="chip s">★ <span id="cStars">0</span></div>
     <div class="spacer"></div>
@@ -170,12 +201,23 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
     <div class="best"><span id="tBest">Mejor puntuación</span> <b id="cBest">0</b></div>
     <button class="play" id="bPlay">JUGAR</button>
     <div class="streak" id="cStreakBox"></div>
+    <button class="dbtn" id="bDaily"></button>
   </div>
+</div>
+
+<div class="page scroll" id="pDaily">
+  <div class="ph"><h1 id="hDaily">Recompensa diaria</h1><span class="ico" id="bDailyBack" style="cursor:pointer">✕</span></div>
+  <div class="psub" id="subDaily"></div>
+  <div class="dgrid" id="dGrid"></div>
+  <button class="dclaim" id="bClaim"></button>
+  <div class="dnote" id="dNote"></div>
 </div>
 
 <div class="page scroll" id="pProfile">
   <div class="ph"><h1 id="hProfile">Perfil</h1><span id="sProfile"></span></div>
   <div class="psub" id="subProfile"></div>
+  <div id="pLvlBar"></div>
+  <div id="pLvlTxt"></div>
   <div class="big1"><div class="v" id="pTotal">0</div><div class="k" id="lTotal">PUNTOS TOTALES</div></div>
   <div class="stats" id="profStats"></div>
   <div class="rows" id="profExtra"></div>
@@ -242,6 +284,10 @@ html,body{height:100%;background:var(--void);color:var(--ink);overflow:hidden;
     <div><b id="oTm">0:00</b><span data-s="sTm">tiempo</span></div>
     <div><b id="oK">0</b><span data-s="sK">bajas</span></div>
   </div>
+  <div class="orank" id="oRank"></div>
+  <div class="onear" id="oNear"></div>
+  <div class="otip" id="oTip"></div>
+  <button class="gh" id="oShare" style="display:none"></button>
   <button class="ad" id="oBX2"></button>
   <button class="ad" id="oBRev"></button>
   <button id="oAgain"></button>
@@ -269,7 +315,12 @@ var LG=(function(){
 
 var DICT={
 es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore:'Mejor puntuación',
- play:'JUGAR',streak:function(n){return 'Racha de <b>'+n+'</b> día'+(n>1?'s':'')+' · vuelve mañana para x2'},
+ play:'JUGAR',streak:function(n){return 'Racha de <b>'+n+'</b> día'+(n>1?'s':'')},
+ dReward:'🎁 RECOMPENSA DIARIA',dTitle:'Recompensa diaria',
+ dSub:'Vuelve cada día: la recompensa sube. Si faltas un día bajas un escalón, no vuelves a cero.',
+ dClaim:'RECLAMAR',dGot:'Reclamado hoy · vuelve mañana',dDay:'Día',
+ dOk:function(c,p){return '+'+c+' ◈'+(p?' y +'+p+' pts':'')},
+ dBonus:'+250 pts al ranking',
  profile:'Perfil',lvlN:function(n){return 'Nivel '+n},runs:function(n){return n+' partidas'},
  totalPts:'PUNTOS TOTALES',stBest:'Mejor partida',stRuns:'Partidas',stKills:'Bajas totales',
  stLen:'Largo récord',stBTime:'Mejor tiempo',stTTime:'Tiempo total',stStreak:'Racha',stWins:'Victorias',
@@ -312,6 +363,24 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  settings:'Ajustes',username:'Nombre de usuario',language:'Idioma',sound:'Efectos de sonido',
  music:'Música',change:'CAMBIAR',
  killedBy:'Eliminado por',survived:'Aguantaste los 6 minutos',survivor:'¡SUPERVIVIENTE!',
+ rkPos:'Puesto',rkDe:'de',rkFalta:'Te faltan',rkPts:'pts para el top 20',rkTop:'¡Estás en el top 20!',
+ rkPrim:'Juega otra vez y entra en el ranking',
+ nearRec:'Tu récord es',nearFalt:'Te faltaron',nearNew:'¡NUEVO RÉCORD!',
+ tips:[
+  'Nadie muere de frente: se muere al tocar el <b>cuerpo</b> del rival. Córtale por delante y cierra la curva.',
+  'El <b>escudo</b> 🛡 aguanta un choque entero. Actívalo antes de entrar en una zona con tráfico.',
+  'El <b>fantasma</b> 👻 te deja atravesar cuerpos unos segundos. Es tu salida cuando te encierran.',
+  'La <b>descarga</b> 💥 empuja a los rivales lejos. Úsala cuando dos te cierren a la vez.',
+  'El mapa da la vuelta: no hay bordes. Si te acorralan, cruza por el borde y aparecerás al otro lado.',
+  'Acelerar consume largo. Corre solo para cortar a alguien o para escapar, no todo el rato.',
+  'Cada nivel nuevo son <b>40 puntos</b> gratis. Sobrevivir 45 s más ya te sube.',
+  'Cada baja son <b>60 puntos</b>. Un rival cazado vale más que veinte orbes.',
+  'Los orbes que suelta un gusano al morir son los más grandes del mapa. Ve a por ellos.',
+  'Cuanto más largo eres, más difícil es girar. A veces conviene no crecer tanto.'],
+ tipKill:'Te mataron pronto:',tipGen:'Consejo:',
+ lvlFalta:'Te faltan',lvlPara:'pts para',lvlMax:'Nivel máximo',
+ share:'📤 PRESUMIR DE ESTA PARTIDA',
+ shareTxt:'He hecho {p} puntos en ABISAL 🪱 ¿Puedes superarme?',
  pts:'PUNTOS',x2on:'PUNTOS DUPLICADOS',bx2:'×2 PUNTOS · ANUNCIO',brev:'REVIVIR · ANUNCIO',
  again:'JUGAR OTRA VEZ',menu:'VOLVER AL MENÚ',
  sLen:'largo',sLvl:'nivel',sTm:'tiempo',sK:'bajas',
@@ -319,7 +388,12 @@ es:{nav:['Jugar','Tienda','Ranking','Amigos','Tareas'],arcade:'Arcade',bestScore
  saveFail:'No se pudo guardar. Inténtalo otra vez',runReject:'Partida no validada',payUnavailable:'Pagos no disponibles',payError:'El pago no se completó',paid:'¡Listo!',
  bought:function(n){return n+' comprado'},equipped:function(n){return n+' equipada'}},
 en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'Best score',
- play:'PLAY',streak:function(n){return '<b>'+n+'</b> day streak · come back tomorrow for x2'},
+ play:'PLAY',streak:function(n){return '<b>'+n+'</b> day streak'},
+ dReward:'🎁 DAILY REWARD',dTitle:'Daily reward',
+ dSub:'Come back every day: the reward grows. Miss a day and you drop one step, not to zero.',
+ dClaim:'CLAIM',dGot:'Claimed today · come back tomorrow',dDay:'Day',
+ dOk:function(c,p){return '+'+c+' ◈'+(p?' and +'+p+' pts':'')},
+ dBonus:'+250 ranking pts',
  profile:'Profile',lvlN:function(n){return 'Level '+n},runs:function(n){return n+' runs'},
  totalPts:'TOTAL POINTS',stBest:'Best run',stRuns:'Runs',stKills:'Total kills',
  stLen:'Length record',stBTime:'Best time',stTTime:'Total time',stStreak:'Streak',stWins:'Wins',
@@ -362,6 +436,24 @@ en:{nav:['Play','Shop','Ranking','Friends','Tasks'],arcade:'Arcade',bestScore:'B
  settings:'Settings',username:'Username',language:'Language',sound:'Sound effects',
  music:'Music',change:'CHANGE',
  killedBy:'Killed by',survived:'You lasted 6 minutes',survivor:'SURVIVOR!',
+ rkPos:'Rank',rkDe:'of',rkFalta:'You need',rkPts:'pts to reach the top 20',rkTop:'You are in the top 20!',
+ rkPrim:'Play again to enter the ranking',
+ nearRec:'Your best is',nearFalt:'You missed it by',nearNew:'NEW RECORD!',
+ tips:[
+  'Nobody dies head-on: you die touching a rival\'s <b>body</b>. Cut in front and close the curve.',
+  'The <b>shield</b> 🛡 takes one full hit. Turn it on before entering a crowded area.',
+  'The <b>ghost</b> 👻 lets you phase through bodies. It is your way out when boxed in.',
+  'The <b>blast</b> 💥 pushes rivals away. Use it when two close in at once.',
+  'The map wraps: there are no walls. If cornered, cross the edge and reappear on the other side.',
+  'Boosting eats your length. Sprint only to cut someone off or to escape.',
+  'Each new level is <b>40 free points</b>. Surviving 45 s more already levels you up.',
+  'Each kill is <b>60 points</b>. One hunted rival beats twenty orbs.',
+  'Orbs dropped by a dying worm are the biggest on the map. Go get them.',
+  'The longer you are, the harder you turn. Sometimes it pays not to grow.'],
+ tipKill:'You died early:',tipGen:'Tip:',
+ lvlFalta:'You need',lvlPara:'pts for',lvlMax:'Max level',
+ share:'📤 SHOW OFF THIS RUN',
+ shareTxt:'I scored {p} points in ABISAL 🪱 Can you beat me?',
  pts:'POINTS',x2on:'POINTS DOUBLED',bx2:'×2 POINTS · AD',brev:'REVIVE · AD',
  again:'PLAY AGAIN',menu:'BACK TO MENU',
  sLen:'length',sLvl:'level',sTm:'time',sK:'kills',
@@ -429,7 +521,8 @@ var cnt={any:false,pts:0,coins:0,kills:0,time:0,won:false};
 var LKEY='abisal_s_v1';
 var LFIELDS=['coins','stars','best','bestLen','bestTime','totalTime','totalPts','streak',
 'runs','kills','wins','netPts','inv','skin','skins','fondo','fondos','adsToday','tasks',
-'name','clan','clanId','lang','sfx','music','adsDay','pendRuns','cyclePts','place','mp'];
+'name','clan','clanId','lang','sfx','music','adsDay','pendRuns','cyclePts','place','mp',
+'dailyDay','dailyN'];
 function saveLocal(){
   try{var o={};for(var i=0;i<LFIELDS.length;i++)o[LFIELDS[i]]=S[LFIELDS[i]];
     o.t=Date.now();localStorage.setItem(LKEY,JSON.stringify(o))}catch(e){}}
@@ -449,7 +542,8 @@ function $(id){return document.getElementById(id)}
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove('on')},2200)}
 function refresh(){$('cCoins').textContent=S.coins;$('cStars').textContent=S.stars;
-  $('cBest').textContent=S.best;$('cStreakBox').innerHTML=L.streak(S.streak)}
+  $('cBest').textContent=S.best;$('cStreakBox').innerHTML=L.streak(S.streak);
+  pintaNivelChip();pintaBotonDaily()}
 function prize(i,red){var t=red?PCT_RED:PCT_HAB;
   var v=Math.floor(POT.usd*(red?.4:.6)*(t[i]||0));return v>=1?v:0}
 function prizeTxt(i,red){var v=prize(i,red);return v>=1?'$'+v:'—'}
@@ -579,6 +673,7 @@ addEventListener('message',function(e){
   // tras revivir llega un segundo 'over' con los totales de la MISMA partida:
   // se contabiliza solo la diferencia para no duplicar puntos, monedas ni runs
   S.coins+=Math.max(0,(d.coins||0)-cnt.coins);
+  var recAntes=S.best||0;              // record previo, para el aviso de "casi lo tienes"
   if(!cnt.any)S.runs++;
   S.kills+=Math.max(0,(d.kills||0)-cnt.kills);
   var dPts=Math.max(0,(d.pts||0)-cnt.pts);
@@ -596,6 +691,8 @@ addEventListener('message',function(e){
   $('oKl').textContent=d.won?L.survived:L.killedBy;
   $('oWho').textContent=d.won?L.survivor:(d.killer||'');
   $('oWho').style.color=d.won?'var(--lime)':'#FF5C7A';
+  pintaFin(d,recAntes);
+  pintaShare(d,recAntes);
   $('oX2').style.display='none';
   $('oBX2').style.display=d.canX2?'block':'none';
   $('oBRev').style.display=(d.canRevive&&!revived)?'block':'none';
@@ -605,9 +702,69 @@ addEventListener('message',function(e){
   x2Base=d.coins||0;   // ya acreditadas: del 'abisal:coins' del x2 solo se suma el extra
   // no enviar el run todavia: el usuario aun puede hacer x2 o revivir
   pendingRun={pts:d.pts||0,len:d.len||0,lvl:d.lvl||1,secs:d.time||0,
-    kills:d.kills||0,inv:S.inv};
+    kills:d.kills||0,inv:S.inv,won:!!d.won};   // 'won' distingue el bono de victoria en el servidor
   armPendTimer();
   saveLocal()});
+
+// ── pantalla de fin: puesto, cercania al record y un consejo util ──
+function puestoEstimado(pts){
+  // se calcula con la tabla que ya tenemos descargada: se ve al instante y se
+  // corrige sola en la siguiente sincronizacion. El puesto cambia igual aunque
+  // no miremos, asi que mostrarlo al momento no engana a nadie.
+  var tabla=BOARDS.hab&&BOARDS.hab.length?BOARDS.hab:[];
+  if(!tabla.length)return null;
+  var mios=S.cyclePts||0,mejores=0;
+  for(var i=0;i<tabla.length;i++)if((tabla[i][1]||0)>mios)mejores++;
+  var corte=tabla.length>=20?(tabla[19][1]||0):null;
+  return {pos:mejores+1,total:Math.max(tabla.length,mejores+1),corte:corte};
+}
+function consejoFin(d){
+  // uno solo, y relacionado con como murio. Nada de muros de texto.
+  var t=L.tips||[];
+  if(!t.length)return '';
+  var i;
+  if((d.time||0)<20)      i=0;                       // murio pronto: como se mata
+  else if(!d.kills)       i=7;                       // sin bajas: valen 60 pts
+  else if((d.lvl||1)<2)   i=6;                       // no subio de nivel
+  else if(d.killer)       i=[1,2,3,4][(S.runs||0)%4];// murio matado: consumibles y bordes
+  else                    i=[5,8,9][(S.runs||0)%3];
+  var pre=((d.time||0)<20&&d.killer)?L.tipKill:L.tipGen;
+  return '<b>'+pre+'</b> '+t[i%t.length];
+}
+function pintaFin(d,recAntes){
+  var pts=d.pts||0;
+  // puesto
+  var q=puestoEstimado(pts),rk=$('oRank');
+  if(!q){ rk.innerHTML=L.rkPrim; }
+  else if(q.corte!==null&&(S.cyclePts||0)<q.corte){
+    rk.innerHTML=L.rkPos+' <b>#'+q.pos+'</b> '+L.rkDe+' '+q.total+
+      ' · '+L.rkFalta+' <b>'+(q.corte-(S.cyclePts||0))+'</b> '+L.rkPts;
+  } else {
+    rk.innerHTML=L.rkPos+' <b>#'+q.pos+'</b> '+L.rkDe+' '+q.total+' · '+L.rkTop;
+  }
+  // cercania al record
+  var nr=$('oNear');
+  if(pts>recAntes&&recAntes>0)      nr.innerHTML='🏅 '+L.nearNew;
+  else if(recAntes-pts>0&&recAntes-pts<=Math.max(40,recAntes*0.15))
+    nr.innerHTML=L.nearFalt+' <b>'+(recAntes-pts)+'</b> · '+L.nearRec+' '+recAntes;
+  else nr.innerHTML='';
+  // consejo
+  $('oTip').innerHTML=consejoFin(d);
+}
+
+// Compartir justo despues de una buena partida: es el unico momento en que a
+// alguien le apetece hacerlo. Escondido en un menu no lo usa nadie.
+function pintaShare(d,recAntes){
+  var b=$('oShare'),pts=d.pts||0;
+  var vale=pts>=recAntes||pts>=200||(d.kills||0)>=1;   // record, buena puntuacion o alguna baja
+  b.style.display=vale?'block':'none';
+  if(!vale)return;
+  b.textContent=L.share;
+  b.onclick=function(){
+    var url=myLink(),txt=(L.shareTxt||'').replace('{p}',pts);
+    var sh='https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(txt);
+    if(TG&&TG.openTelegramLink)TG.openTelegramLink(sh);else window.open(sh,'_blank')};
+}
 
 // envio diferido del run (tras x2 / volver al menu / jugar otra vez / timeout)
 var pendingRun=null,pendTimer=null;
@@ -657,10 +814,12 @@ $('oMenu').onclick=function(){bgOn=true;$('over').classList.remove('on');
   sendPendingRun();
   toFrame({type:'abisal:stop'})};
 $('oBRev').onclick=function(){showAd(function(){revived=true;
+  api('ad',{kind:'reward',item:'revive'});   // registra el anuncio visto
   clearPendingRun();           // al revivir no se envia la muerte: se espera al over final
   $('over').classList.remove('on');
   toFrame({type:'abisal:revive'})})};
 $('oBX2').onclick=function(){showAd(function(){
+  api('ad',{kind:'reward',item:'x2'});       // registra el anuncio visto
   toFrame({type:'abisal:x2'});
   var cur=parseInt($('oPts').textContent,10)||0;
   $('oBX2').style.display='none';$('oBRev').style.display='none';
@@ -669,10 +828,10 @@ $('oBX2').onclick=function(){showAd(function(){
   refresh();saveLocal();
   // el run se envia ya con los puntos doblados
   cnt.pts=cur*2;
-  if(pendingRun)pendingRun.pts=cur*2;
+  if(pendingRun){pendingRun.pts=cur*2;pendingRun.doubled=true}  // el servidor audita el x2
   sendPendingRun()})};
 
-var PAGES=['pHome','pShop','pTasks','pRank','pFriends','pProfile','pSet'];
+var PAGES=['pHome','pShop','pTasks','pRank','pFriends','pProfile','pSet','pDaily'];
 function goto(id,btn){
   for(var i=0;i<PAGES.length;i++)$(PAGES[i]).classList.toggle('on',PAGES[i]===id);
   var nb=document.querySelectorAll('#nav button');
@@ -683,12 +842,17 @@ function goto(id,btn){
   if(id==='pFriends')drawFriends();
   if(id==='pProfile')drawProfile();
   if(id==='pSet')drawSet();
+  if(id==='pDaily')drawDaily();
   if(!btn&&(id==='pProfile'||id==='pSet')){
     var nb=document.querySelectorAll('#nav button');
     for(var q=0;q<nb.length;q++)nb[q].classList.remove('on')}}
 (function(){var nb=document.querySelectorAll('#nav button');
  for(var i=0;i<nb.length;i++)(function(b){b.onclick=function(){goto(b.dataset.p,b)}})(nb[i])})();
 $('bProf').onclick=function(){goto('pProfile',null)};
+$('bDaily').onclick=function(){drawDaily();goto('pDaily',null)};
+$('bClaim').onclick=reclamarDaily;
+$('bDailyBack').onclick=function(){goto('pHome',null)};
+$('cLvlChip').onclick=function(){goto('pProfile',null)};   // tocar el nivel abre el perfil
 $('bSet').onclick=function(){goto('pSet',null)};
 function backHome(){var nb=document.querySelectorAll('#nav button');
   goto('pHome',nb[0])}
@@ -817,11 +981,21 @@ function drawShop(){
 var TASK_REWARD=400,TASK_WAIT=10000;
 // misiones: se cumplen jugando. El boton COBRAR solo aparece al alcanzar la meta.
 var LTASKS=[
- {id:'play3', r:150,k:'tPlay', g:3,  fld:'runs'},
- {id:'len120',r:250,k:'tLen',  g:120,fld:'len'},
- {id:'kill5', r:300,k:'tKill', g:5,  fld:'kills'},
- {id:'time120',r:250,k:'tTime',g:120,fld:'time'},
- {id:'daily', r:200,k:'tDaily',g:1,  fld:'open'}];
+ {id:'daily',  r:200,k:'tDaily',g:1,  fld:'open', niv:1},
+ {id:'play3',  r:150,k:'tPlay', g:3,  fld:'runs', niv:1},
+ {id:'len120', r:250,k:'tLen',  g:80, fld:'len',  niv:1},
+ {id:'time120',r:250,k:'tTime', g:60, fld:'time', niv:2},
+ {id:'kill5',  r:300,k:'tKill', g:2,  fld:'kills',niv:2}];
+// nivel 1 = alcanzable en la primera sesion. El nivel 2 aparece al completar
+// las tres del nivel 1: asi el jugador nuevo ve metas posibles, no imposibles.
+function nivelMisiones(){
+  var p=mp(),hechas=0,i;
+  for(i=0;i<LTASKS.length;i++){
+    var t=LTASKS[i];
+    if(t.niv===1&&(taskState(t.id).st===2||(p[t.fld]||0)>=t.g))hechas++;
+  }
+  return hechas>=3?2:1;
+}
 function today(){return new Date().toISOString().slice(0,10)}
 function mp(){
   if(!S.mp||S.mp.day!==today())S.mp={day:today(),runs:0,len:0,kills:0,time:0,open:1};
@@ -850,13 +1024,17 @@ function drawTasks(){
       '<div slot="claim" class="agb agc">'+L.taskClaim+'</div>'+
       '<div slot="done" class="agb agd">'+L.taskDone+'</div>'+
       '</adsgram-task>';
+  var nv=nivelMisiones();
   for(i=0;i<LTASKS.length;i++){
     var t=LTASKS[i],st=taskState(t.id),cur=p[t.fld]||0,lab,cls='';
+    if((t.niv||1)>nv)continue;                       // el nivel 2 aparece al acabar el 1
     if(st.st===2){lab=L.taskDone;cls=' done'}
     else if(cur>=t.g){lab=L.taskClaim;cls=' cl'}
     else{lab=Math.min(cur,t.g)+'/'+t.g;cls=' wait'}
+    var pc=Math.max(0,Math.min(100,Math.round(cur/t.g*100)));
     html+='<div class="row"><div class="tk">\u25C8</div>'+
-      '<div class="tx"><b>'+L[t.k]+'</b><i>+'+t.r+' \u25C8</i></div>'+
+      '<div class="tx"><b>'+L[t.k]+'</b><i>+'+t.r+' \u25C8</i>'+
+      (st.st===2?'':'<div class="mbar"><span style="width:'+pc+'%"></span></div>')+'</div>'+
       '<button class="go'+cls+'" data-lt="'+t.id+'">'+lab+'</button></div>'}
   box.innerHTML=html;
   var el=box.querySelector('adsgram-task');
@@ -967,9 +1145,73 @@ function drawRank(){
     '<div class="nm">'+esc(S.name)+'</div><div class="sc">'+mine+'</div>'+
     '<div class="pz">'+(pos<=paidCount(red)?prizeTxt(pos-1,red):'—')+'</div></div></div>'}
 
+// escalon creciente: los primeros niveles caen rapido para enganchar,
+// luego cuestan mas. 800, 1800, 3000, 4400... (base 800 + 200 por nivel)
+function nivelPerfil(tot){
+  var n=1,acum=0,paso=800;
+  while(acum+paso<=tot&&n<99){acum+=paso;n++;paso=800+(n-1)*200}
+  var dentro=tot-acum,pc=Math.max(0,Math.min(100,Math.round(dentro/paso*100)));
+  return {n:n,pc:pc,falta:Math.max(0,paso-dentro),paso:paso};
+}
+function pintaNivelChip(){
+  var nv=nivelPerfil(S.totalPts||0);
+  var el=$('cLvl'); if(el)el.textContent=nv.n;
+  var chip=$('cLvlChip');
+  if(chip&&!chip.querySelector('.lvb'))
+    chip.insertAdjacentHTML('beforeend','<div class="lvb"><span></span></div>');
+  var b=chip&&chip.querySelector('.lvb span');
+  if(b)b.style.width=nv.pc+'%';
+}
+// ── recompensa diaria ──────────────────────────────────────────────────
+// El servidor decide el dia y entrega las monedas: aqui solo se pinta y se
+// pide. Nunca se suma saldo por nuestra cuenta para no descuadrar la economia.
+var DREC=[50,75,100,150,200,300,500];
+function dailyHecho(){return S.dailyDay===today()}
+function drawDaily(){
+  $('hDaily').textContent=L.dTitle;
+  $('subDaily').textContent=L.dSub;
+  var n=Math.max(0,Math.min(7,S.dailyN||0));
+  var prox=dailyHecho()?n:(n>=7?1:n+1);
+  var h='',i;
+  for(i=1;i<=7;i++){
+    var cls='dcell'+(i<=n&&dailyHecho()?' done':(i<n?' done':''))+(i===prox&&!dailyHecho()?' now':'')+(i===7?' big':'');
+    h+='<div class="'+cls+'"><div class="dd">'+L.dDay+' '+i+'</div>'+
+       '<div class="dv">+'+DREC[i-1]+' \u25C8</div>'+
+       (i===7?'<div class="dd" style="margin-top:3px">'+L.dBonus+'</div>':'')+'</div>';
+  }
+  $('dGrid').innerHTML=h;
+  var b=$('bClaim');
+  b.textContent=dailyHecho()?L.dGot:L.dClaim+'  +'+DREC[prox-1]+' \u25C8';
+  b.disabled=!!dailyHecho();
+  $('dNote').textContent=L.streakN?L.streakN(S.streak||1):'';
+}
+function pintaBotonDaily(){
+  var b=$('bDaily'); if(!b)return;
+  b.textContent=L.dReward;
+  b.className='dbtn'+(dailyHecho()?' got':'');
+}
+function reclamarDaily(){
+  var b=$('bClaim'); if(b)b.disabled=true;
+  api('daily').then(function(r){
+    if(!r){toast(L.saveFail);drawDaily();return}
+    if(r.ya){S.dailyDay=today();saveLocal();drawDaily();pintaBotonDaily();return}
+    if(!r.ok){toast(L.saveFail);drawDaily();return}
+    S.dailyDay=today();S.dailyN=r.dia;
+    if(typeof r.total==='number')S.coins=r.total;
+    if(r.pts){S.cyclePts=(S.cyclePts||0)+r.pts}
+    saveLocal();refresh();drawDaily();pintaBotonDaily();
+    toast(L.dOk(r.coins,r.pts||0))});
+}
 function drawProfile(){
   $('hProfile').textContent=L.profile;
-  $('sProfile').textContent=L.lvlN(Math.floor(S.totalPts/2000)+1);
+  // Progresion de cuenta: sube con los puntos acumulados de SIEMPRE, no del ciclo.
+  // Es el unico progreso garantizado para quien nunca entra al top 20.
+  var nv=nivelPerfil(S.totalPts||0);
+  $('sProfile').textContent=L.lvlN(nv.n);
+  $('pLvlBar').innerHTML='<span style="width:'+nv.pc+'%"></span>';
+  $('pLvlTxt').textContent=nv.falta>0
+    ? L.lvlFalta+' '+nv.falta+' '+L.lvlPara+' '+L.lvlN(nv.n+1)
+    : L.lvlMax;
   $('subProfile').textContent=L.runs(S.runs);
   $('pTotal').textContent=S.totalPts;$('lTotal').textContent=L.totalPts;
   var ms=function(t){return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
@@ -1078,10 +1320,13 @@ function loadState(){
     var sv={coins:p.coins||0,stars:p.stars||0,best:p.best_pts||0,bestLen:p.best_len||0,
       bestTime:p.best_time||0,totalTime:p.total_time||0,totalPts:p.total_pts||0,
       runs:p.runs||0,kills:p.kills||0,wins:p.wins||0,netPts:p.net_pts||0,
-      streak:p.streak||1,cyclePts:p.cycle_pts||0};
+      streak:p.streak||1,cyclePts:p.cycle_pts||0,
+      dailyDay:p.daily_day?String(p.daily_day).slice(0,10):null,dailyN:p.daily_n||0};
     for(var i=0;i<MAXF.length;i++){var k=MAXF[i];
       S[k]=Math.max(S[k]||0,sv[k]||0)}
     S.cyclePts=Math.max(S.cyclePts||0,p.cycle_pts||0);
+    // el estado de la recompensa diaria manda el servidor, no el local
+    S.dailyDay=sv.dailyDay;S.dailyN=sv.dailyN;
     S.skin=p.skin||S.skin;S.fondo=p.fondo||S.fondo;
     var ss=p.skins||[],ff=p.fondos||[];
     for(var a=0;a<ss.length;a++)addOwn(S.skins,ss[a]);
