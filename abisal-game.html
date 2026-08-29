@@ -276,7 +276,8 @@ const STR={
   botKill:(a,b)=>a+' killed '+b,
   bio:['ROOTS','CRYSTAL','SPORES','MAGMA','THE VOID'],
   pup:{esc:'SHIELD',ima:'MAGNET',des:'FLASH'}}};
-const T=STR[LG];
+let LGX=LG,T=STR[LG];
+function setLang(l){if(l!=='es'&&l!=='en')return;LGX=l;T=STR[l];try{board();pwHud()}catch(e){}}
 function applyLang(){
   const hc=document.getElementById('hcave');if(hc)hc.textContent=T.cave;
   document.querySelector('.hint.l').textContent='◀ '+T.turbo;
@@ -1209,7 +1210,13 @@ function send(type,payload){
 /* PUNTOS = largo máximo + nivel×40 + bajas×60. Siempre se suman: no hay que ganar. */
 let prevLen=CFG.start,usedDes=false;
 let usedRev=false,usedX2=false,won=false,maxLen=0,lastPts=0,deadLen=0;
-function calcPts(){return Math.floor(maxLen)+lvl*40+kills*60}
+const MIN_PTS_SECS=15;                 // antes de esto la partida no puntua
+function calcPts(){
+  if(tmr < MIN_PTS_SECS*60) return 0;
+  const crecido=Math.max(0,Math.floor(maxLen)-CFG.start);   // solo lo que creciste
+  const niveles=Math.max(0,lvl-1)*40;                       // el nivel 1 no regala
+  return crecido+niveles+kills*60;
+}
 function showEnd(){
   if(embedded)return;                // embebido manda el overlay del menu (#over)
   const d=document.getElementById('solo');
@@ -1288,6 +1295,7 @@ function start(cfg){
     const c0=mySkin(0,0);myHue=((c0[0]%360)+360)%360}
   else{mySkin=null;myHue=188}
   if(cfg&&cfg.fondo&&FONDOF[cfg.fondo])myFondo=FONDOF[cfg.fondo];
+  if(cfg&&cfg.lang)setLang(cfg.lang);          // idioma unico con bot y menu
   if(cfg&&typeof cfg.sfx==='boolean')sfxWant=sfxOn=cfg.sfx;
   if(cfg&&typeof cfg.music==='boolean')musWant=musOn=cfg.music;
   if(cfg&&cfg.inv)inv={...cfg.inv};
@@ -1314,6 +1322,7 @@ addEventListener('message',e=>{
   else if(m.type==='abisal:x2')doX2();
   else if(m.type==='abisal:setInv'){inv={...(m.payload||{})};pwHud()}
   else if(m.type==='abisal:settings'){const p=m.payload||{};
+    if(p.lang)setLang(p.lang);
     if(typeof p.sfx==='boolean')sfxWant=sfxOn=p.sfx;
     if(typeof p.music==='boolean'){musWant=musOn=p.music;
       if(AC&&musGain)musGain.gain.setTargetAtTime(musOn?.62:0,AC.currentTime,.4)}}});
