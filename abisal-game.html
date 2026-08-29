@@ -37,7 +37,9 @@ canvas#cv{display:block;position:fixed;inset:0;width:100%;height:100%}
   font:700 10px JetBrains Mono,monospace;opacity:.4;color:#FFD24A}
 .pw{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom) + 168px);
   z-index:7;display:flex;flex-direction:column;gap:8px}
-.pw button{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;
+.pw button .tb{position:absolute;left:0;bottom:0;height:3px;width:0%;border-radius:0 0 12px 12px;
+  transition:width .12s linear;opacity:.95}
+.pw button{position:relative;touch-action:none;width:52px;height:52px;border-radius:15px;display:grid;place-items:center;
   font:700 16px Chakra Petch;border:1.5px solid;background:rgba(6,10,22,.6);position:relative;color:inherit}
 .pw button:active{transform:scale(.93)}
 .pw button.no{opacity:.2}
@@ -478,6 +480,7 @@ for(let k=0;k<7;k++){
 const R=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.floor(Math.random()*a.length)];
 const hsh=(i,j)=>{const s=Math.sin(i*127.1+j*311.7)*43758.5453;return s-Math.floor(s)};
 
+const GRACIA=20*60;   // 20 s de margen al empezar: los bots no cazan al jugador
 let cam,tmr,lvl,kills,tk=0,shake=0,tipT=0,flash=0,rocks=[],
     food,tox,worms,parts,fx,motes,
     nemesis=null,nemCnt=0,killer=null,fpsV=60,biome=BIO[0],bidx=0;
@@ -536,13 +539,48 @@ function mkW(p,px,py){
     hue:r[1],pat:r[2],fin:r[3],
     boost:0,alive:true,tgt:null,goal:null,gT:0,dT:0,gd:999,lvlSk:1,new:150,
     esc:0,ima:0,blind:0,mood:0,moodT:0}}
-const mkF=()=>({x:R(0,MW),y:R(0,MH),v:CFG.gain,r:3.2,d:0,ph:R(0,6.3)});
+const FCEL=6;                       // rejilla 6x6 para repartir los orbes
+function celdaFloja(){
+  const c=new Array(FCEL*FCEL).fill(0);
+  for(const f of food){
+    const cx=((Math.floor(f.x/MW*FCEL)%FCEL)+FCEL)%FCEL;
+    const cy=((Math.floor(f.y/MH*FCEL)%FCEL)+FCEL)%FCEL;
+    c[cy*FCEL+cx]++;
+  }
+  let mejor=0,min=1e9;
+  // entre las mas vacias se elige una al azar, para que no se note la rejilla
+  const flojas=[];
+  for(let i=0;i<c.length;i++){if(c[i]<min){min=c[i];flojas.length=0}if(c[i]===min)flojas.push(i)}
+  mejor=flojas[Math.floor(Math.random()*flojas.length)];
+  return {cx:mejor%FCEL,cy:Math.floor(mejor/FCEL)};
+}
+const mkF=()=>{
+  const q=celdaFloja(),w=MW/FCEL,h=MH/FCEL;
+  return {x:wrapX(q.cx*w+R(0,w)),y:wrapY(q.cy*h+R(0,h)),v:CFG.gain,r:3.2,d:0,ph:R(0,6.3)};
+};
 const mkT=()=>({x:R(0,MW),y:R(0,MH),ph:R(0,6.3),rot:R(0,6.3)});
 function seedPath(w){w.path=[];const n=Math.max(8,Math.floor(w.len*CFG.ptsPer));
   for(let i=0;i<n;i++)w.path.push({x:w.x,y:wrapY(w.y-i*CFG.step)})}
+// zona (de una rejilla 4x4) con menos gusanos: evita que nazcan en manada
+function zonaVacia(){
+  const N=4,c=new Array(N*N).fill(0);
+  for(const w of worms){
+    if(!w.alive)continue;
+    const cx=((Math.floor(w.x/MW*N)%N)+N)%N,cy=((Math.floor(w.y/MH*N)%N)+N)%N;
+    c[cy*N+cx]++;
+  }
+  let min=1e9;const flojas=[];
+  for(let i=0;i<c.length;i++){if(c[i]<min){min=c[i];flojas.length=0}if(c[i]===min)flojas.push(i)}
+  const k=flojas[Math.floor(Math.random()*flojas.length)];
+  return {cx:k%N,cy:Math.floor(k/N),w:MW/N,h:MH/N};
+}
 function safeSpawn(){
   for(let t=0;t<50;t++){
-    const px=R(0,MW),py=R(0,MH);let ok=true;
+    // los primeros intentos, en la zona mas despejada; luego ya donde se pueda
+    let px,py;
+    if(t<35){const z=zonaVacia();px=wrapX(z.cx*z.w+R(0,z.w));py=wrapY(z.cy*z.h+R(0,z.h))}
+    else{px=R(0,MW);py=R(0,MH)}
+    let ok=true;
     for(const w of worms){
       if(!w.alive)continue;
       const need=w.p?CFG.safe*1.4:CFG.safe;
@@ -585,9 +623,25 @@ function pwHud(){
   const p=worms&&worms[0],el=document.getElementById('pw');let h='';
   for(const k of PKEYS){const d=PUP[k],n=inv[k]||0,act=p&&d.t&&p[k]>0;
     h+=`<button data-k="${k}" class="${n<=0&&!act?'no':''} ${act?'act':''}" `+
-       `style="color:${d.c};border-color:${d.c}66">${d.ic}<em>${n}</em></button>`}
+       `style="color:${d.c};border-color:${d.c}66">${d.ic}<em>${n}</em>`+
+       `<i class="tb" style="background:${d.c}"></i></button>`}
   el.innerHTML=h;
-  el.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.stopPropagation();use(b.dataset.k)})}
+  el.querySelectorAll('button').forEach(b=>{
+    const dis=e=>{e.stopPropagation();e.preventDefault();use(b.dataset.k)};
+    b.addEventListener('pointerdown',dis);
+    b.addEventListener('click',e=>{e.stopPropagation();e.preventDefault()});
+  })}
+// pinta cuanto queda de cada poder activo. Antes se activaban a ciegas.
+function pwTick(){
+  const el=document.getElementById('pw');if(!el)return;
+  const p=worms&&worms[0];if(!p)return;
+  el.querySelectorAll('button').forEach(b=>{
+    const k=b.dataset.k,bar=b.querySelector('.tb');if(!bar)return;
+    const d=PUP[k],rest=(k==='esc'?p.esc:(k==='ima'?p.ima:0))||0;
+    const pc=(d&&d.t)?Math.max(0,Math.min(1,rest/d.t)):0;
+    bar.style.width=(pc*100)+'%';
+    b.classList.toggle('act',pc>0);
+  })}
 function use(k){
   const p=P();if(!run||!p.alive||(inv[k]||0)<=0)return;
   const d=PUP[k];
@@ -618,6 +672,12 @@ function up(e){if(e.pointerId===stId){stId=null;stO=stP=null;stM=0}
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('lostpointercapture',up);
 
+// mitad de pantalla en unidades del mundo, igual que ve el jugador
+function veAncho(){return W*0.5+30}
+function veAlto(){return H*0.5+30}
+// fuera de la "pantalla" del bot no existe nada: ni comida ni rivales
+function fuera(ax,ay){return Math.abs(ax)>veAncho()||Math.abs(ay)>veAlto()}
+
 function chooseGoal(b){
   const q=b.per;let best=null,bs=-1e9;
   // retirada tactica: si esta muy mermado deja de cazar hasta recuperarse
@@ -626,15 +686,24 @@ function chooseGoal(b){
     b.moodT=40+Math.random()*40}
   const hurt=b.mood===1;
   for(let i=0;i<food.length;i++){
-    const f=food[i],ax=dX(f.x,b.x),ay=dY(f.y,b.y),d2=ax*ax+ay*ay;
-    if(d2>800*800)continue;
+    const f=food[i],ax=dX(f.x,b.x),ay=dY(f.y,b.y);
+    if(fuera(ax,ay))continue;              // solo lo que veria en su pantalla
+    const d2=ax*ax+ay*ay;
     const d=Math.sqrt(d2);
-    const sc=(f.d?30:1)*q.f*340/(d+90);
-    if(sc>bs){bs=sc;best={t:'food',gx:f.x,gy:f.y,big:!!f.d}}}
+    // ambicion: los buenos van a por comida con mas ganas y valoran mas los
+    // orbes grandes, asi la tabla interna se mueve de verdad
+    const amb=0.9+b.sk*1.5;
+    const sc=(f.d?95:5.2)*q.f*amb*340/(d+90);
+    let sc2=sc;
+    for(const o of worms){
+      if(o===b||o.p||!o.alive||!o.goal||o.goal.t!=='food')continue;
+      if(dist2(o.goal.gx,o.goal.gy,f.x,f.y)<130*130){sc2*=.45;break}
+    }
+    if(sc2>bs){bs=sc2;best={t:'food',gx:f.x,gy:f.y,big:!!f.d}}}
   for(const w of worms){
     if(w===b||!w.alive||w.new>0)continue;
     const ax=dX(w.x,b.x),ay=dY(w.y,b.y),d=Math.hypot(ax,ay);
-    if(d<20||d>700)continue;
+    if(d<20||fuera(ax,ay))continue;        // no puede emboscar desde fuera de pantalla
     const ratio=w.len/b.len;
     if(ratio<0.94&&!hurt&&!b.blind){
       // interceptar por delante, no perseguir por detrás
@@ -658,8 +727,12 @@ function chooseGoal(b){
       if(canCut)sc*=2.2;
       if(ratio<.7)sc*=1.5;
       if(d<170)sc*=1.5;
-      if(sc>bs){bs=sc;best={t:'hunt',gx:canCut?bx2:cx,gy:canCut?by2:cy,ref:w}}}
-    else if(ratio>1.06&&d<380){
+      if(w.p&&tmr<GRACIA)sc=0;        // tregua inicial: no van a por el jugador
+      // un bot flojo que se lanza a morir rompe la ilusion de que hay jugadores:
+      // si no puede cortar y el rival es mayor, no se tira
+      if(!canCut&&ratio<1&&b.sk<.85)sc*=.25;
+      if(sc>bs&&sc>0){bs=sc;best={t:'hunt',gx:canCut?bx2:cx,gy:canCut?by2:cy,ref:w}}}
+    else if(ratio>1.35&&d<300){
       if(Math.cos(w.ang)*(-ax)+Math.sin(w.ang)*(-ay)>0){
         const sc=(760-d)*(.9+q.c*1.6)*2.1*b.sk;
         if(sc>bs){bs=sc;best={t:'flee',
@@ -717,15 +790,16 @@ function think(b,dt){
     if(cl<need)sc-=(1-cl/need)*11;
     else sc+=Math.min(1,(cl-need)/160)*.9;
     sc-=Math.abs(off)*.18;
-    sc+=Math.max(0,.35-Math.abs(off-b.lastOff)*.6);
+    sc+=Math.max(0,1.5-Math.abs(off-b.lastOff)*.35);
     if(sc>bestS){bestS=sc;bestA=a;bestOff=off}}
-  b.lastOff=bestOff*.6;
+  b.lastOff=bestOff*.85;   // compromiso con el rumbo elegido: menos serpenteo
   b.tgt=bestA;
   const g=b.goal;
   const wantB=b.tlen>CFG.start+9&&!!g&&
-    ((g.t==='hunt'&&gd<300)||(g.t==='flee'&&gd<300)||(g.t==='food'&&g.big&&gd<260));
-  if(wantB&&!b.boost&&Math.random()<q.b*.14)b.boost=1;
-  else if(b.boost&&(!wantB||Math.random()<.04))b.boost=0;
+    ((g.t==='hunt'&&gd<200)||(g.t==='flee'&&gd<150)||(g.t==='food'&&g.big&&gd<170));
+  if(wantB&&!b.boost&&Math.random()<q.b*.03)b.boost=1;
+  // rachas cortas, no acelerón permanente: asi se les puede dar caza
+  else if(b.boost&&(!wantB||Math.random()<.13))b.boost=0;
 }
 function kill(w,by){
   if(!w.alive)return;
@@ -802,7 +876,18 @@ function step(dt){
     for(let i=food.length-1;i>=0;i--){const f=food[i];
       if(Math.abs(dY(f.y,w.y))>90)continue;
       if(dist2(f.x,f.y,w.x,w.y)<(rr+f.r+10)**2){
-        w.tlen+=f.v;food.splice(i,1);
+        var gan=f.v;
+        if(!w.p){
+          const pl=worms[0];
+          if(pl&&pl.alive&&pl.len>w.len){
+            // cuanto mas lejos van, mas aprovechan: se mantienen en carrera
+            // cuanto mas lejos van, mas aprovechan cada orbe: asi la tabla
+            // se mantiene viva en vez de despegarse el jugador desde el minuto uno
+            const atras=Math.min(3.0,pl.len/Math.max(18,w.len));
+            gan*=1+(atras-1)*(1.0+w.sk*1.1);
+          }
+        }
+        w.tlen+=gan;food.splice(i,1);
         if(w.p){if(f.d)coins+=2;sfx(f.d?'orb':'eat');
           parts.push({x:f.x,y:f.y,vx:R(-1.6,1.6),vy:R(-1.6,1.6),l:.5,h:f.d?48:160})}}}
     for(const t of tox)if(dist2(t.x,t.y,w.x,w.y)<(rr+15)**2)kill(w,null)}
@@ -1107,7 +1192,7 @@ function loop(now){
   if(fC>=30){fpsV=Math.round(1000/(fT/fC));fT=0;fC=0;
     document.getElementById('hfps').textContent=fpsV;
     if(run)quality(fpsV)}
-  try{ if(run)step(dt); render(); errN=0 }
+  try{ if(run)step(dt); render(); pwTick(); errN=0 }
   catch(err){ console.error(err);
     // si el frame falla 30 veces seguidas, detener en vez de quedar en bucle zombie
     if(++errN>30){errN=0;run=false;musicStop()} }}
